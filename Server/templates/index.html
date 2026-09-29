@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso - Universidad de Extremadura</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/variables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/login.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <img src="https://www.unex.es/wp-content/themes/uex/images/logos/logo-UEx.webp" alt="Logotipo UEX" class="login-logo">
+        <img src="https://www.unex.es/wp-content/themes/uex/images/logos/logo-rectorado.webp" alt="Logotipo Rectorado" class="login-logo">
+        
+        <h2>Acceso a Control de Asistencia</h2>
+        <p>Dashboard de aulas</p>
+        
+        <!-- Formulario estándar apuntando al endpoint de login -->
+        <form action="/auth/login" method="POST">
+            
+            <div class="form-group">
+                <label for="correo" class="visually-hidden">Correo Electrónico</label>
+                <!--  Añadido name="correo" -->
+                <input type="email" id="correo" name="correo" class="form-control" placeholder="Correo Electrónico" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="visually-hidden">Contraseña</label>
+                <!--  Añadido name="password" -->
+                <input type="password" id="password" name="password" class="form-control" placeholder="Contraseña" required>
+            </div>
+
+            <!-- Botón submit sin onclick -->
+            <button type="submit" class="btn-login">Entrar</button>
+            
+        </form>
+        
+        <!-- Nota: Los errores ahora los manejará el navegador o una página de error del backend -->
+    </div>
+
+    <!-- Ya no necesitas login.js para la autenticación básica -->
+</body>
+</html>

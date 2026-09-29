@@ -1,0 +1,103 @@
+/* ==============================================
+   DESIGN TOKENS — Universidad de Extremadura
+   Paleta unificada para todas las páginas
+   ============================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+    /* — Institucional UEx — */
+    --uex-verde:          #005942;
+    --uex-verde-oscuro:   #003d2e;
+    --uex-verde-profundo: #001f17;
+    --uex-verde-light:    #e6f2ee;
+    --uex-verde-muted:    #d0e8df;
+    --uex-verde-10:       rgba(0, 89, 66, 0.10);
+    --uex-verde-20:       rgba(0, 89, 66, 0.20);
+    --uex-verde-30:       rgba(0, 89, 66, 0.30);
+
+    /* — Acento — */
+    --acento:             #0a8f6c;
+    --acento-hover:       #077a5c;
+    --acento-light:       #e0f5ee;
+
+    /* — Neutros — */
+    --texto-principal:    #1a1a2e;
+    --texto-secundario:   #4a5568;
+    --texto-terciario:    #8c95a6;
+    --fondo-pagina:       #f0f4f3;
+    --fondo-tarjeta:      rgba(255, 255, 255, 0.97);
+    --fondo-input:        rgba(255, 255, 255, 0.90);
+    --fondo-muted:        #f5f7f6;
+    --borde:              #d4ddd8;
+    --borde-light:        #e8eeeb;
+    --borde-input:        #c5cec9;
+
+    /* — Semánticos — */
+    --success:            #0d9668;
+    --success-bg:         #d1f2e6;
+    --success-text:       #064e36;
+    --warning:            #d4930d;
+    --warning-bg:         #fef3cd;
+    --warning-text:       #664a08;
+    --danger:             #c53030;
+    --danger-bg:          #fde8e8;
+    --danger-text:        #742020;
+    --info:               #0c7ea8;
+    --info-bg:            #d6f0fa;
+    --info-text:          #064b6a;
+
+    /* — Sombras — */
+    --sombra-sm:          0 1px 3px rgba(0, 40, 30, 0.08);
+    --sombra-md:          0 4px 12px rgba(0, 40, 30, 0.10);
+    --sombra-lg:          0 8px 24px rgba(0, 40, 30, 0.12);
+    --sombra-xl:          0 12px 40px rgba(0, 40, 30, 0.16);
+
+    /* — Tipografía — */
+    --font-body:          'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+
+    /* — Radios — */
+    --radius-sm:          6px;
+    --radius-md:          10px;
+    --radius-lg:          14px;
+    --radius-xl:          20px;
+    --radius-full:        9999px;
+
+    /* — Transiciones — */
+    --ease-out:           cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-fast:    150ms var(--ease-out);
+    --transition-base:    250ms var(--ease-out);
+    --transition-slow:    400ms var(--ease-out);
+
+    /* — Gradientes institucionales — */
+    --grad-uex:           linear-gradient(135deg, #005942 0%, #003d2e 50%, #001f17 100%);
+    --grad-uex-soft:      linear-gradient(135deg, #e6f2ee 0%, #d0e8df 100%);
+    --grad-uex-card:      linear-gradient(135deg, rgba(0,89,66,0.04) 0%, rgba(0,61,46,0.02) 100%);
+}
+
+/* — Animaciones reutilizables — */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideOutRight {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.6; }
+}

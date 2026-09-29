@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/variables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <h2>Bienvenido</h2>
+        <p>Rol: <span id="rol">{{ rol }}</span></p>
+        <button onclick="obtenerAsistencias()">Ver Asistencias</button>
+        <button onclick="logout()">Cerrar Sesión</button>
+
+        <div id="asistencias"></div>
+    </div>
+
+    <script>
+        function obtenerAsistencias() {
+		
+			const token = localStorage.getItem("token");
+			console.log(token);
+			
+			if (!token) {
+				console.error("No se encontró token en localStorage");
+				return;
+			}
+			
+            fetch("/asistencias", {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`,
+					"Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                let output = "<h3>Asistencias</h3><ul>";
+                data.forEach(asistencia => {
+                    output += `<li>${asistencia.usuario_id} - ${asistencia.aula_id} - ${asistencia.fecha_hora}</li>`;
+                });
+                output += "</ul>";
+                document.getElementById("asistencias").innerHTML = output;
+            });
+        }
+
+        function logout() {
+            localStorage.removeItem("token");
+            window.location.href = "/";
+        }
+    </script>
+</body>
+</html>
+

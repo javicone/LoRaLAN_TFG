@@ -1,0 +1,187 @@
+/* Variables locales heredadas de variables.css —
+   Se mantienen como fallback por si se carga sin variables.css */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 80%;
+}
+
+body {
+    font-family: var(--font-body, 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+    background: 
+        linear-gradient(rgba(244, 247, 246, 0.85), rgba(244, 247, 246, 0.85)),
+        url('https://merida.es/wp-content/uploads/2024/04/Centro-Universitario-Merida-scaled.jpg') center/cover no-repeat fixed;
+    color: var(--texto-principal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+.login-container {
+    background-color: var(--fondo-tarjeta);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(12px);
+    padding: 4.5rem;
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.login-logo {
+    max-width: 280px;
+    margin-bottom: 2.5rem;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.15));
+}
+
+.login-container h2 {
+    color: var(--uex-verde);
+    margin-bottom: 2.5rem;
+    font-weight: 600;
+    font-size: 2.2rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.login-container p {
+    color: var(--texto-secundario);
+    margin-bottom: 2.5rem;
+    font-size: 1.3rem;
+}
+
+.form-group {
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.form-control {
+    width: 100%;
+    padding: 1.3rem 1.5rem;
+    font-size: 1.2rem;
+    border: 1px solid var(--borde-input);
+    border-radius: 8px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.form-control::placeholder {
+    color: #999;
+}
+
+.form-control:focus {
+    border-color: var(--uex-verde);
+    box-shadow: 0 0 0 3px var(--uex-verde-20, rgba(0, 89, 66, 0.2));
+    outline: none;
+    background-color: rgba(255, 255, 255, 1);
+}
+
+.btn-login {
+    width: 100%;
+    padding: 1.3rem 1.5rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--uex-verde);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 1rem;
+    box-shadow: 0 3px 10px rgba(0, 89, 66, 0.3);
+}
+
+.btn-login:hover, .btn-login:focus {
+    background-color: var(--uex-verde-oscuro);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px var(--uex-verde-30, rgba(0, 89, 66, 0.4));
+    outline: none;
+}
+
+#error-message {
+    color: #d93025;
+    font-size: 1.1rem;
+    margin-top: 2rem;
+    min-height: 1.2em;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 768px) {
+    .login-container {
+        padding: 3rem;
+        max-width: 90%;
+        margin: 1rem;
+    }
+    
+    .login-logo {
+        max-width: 240px;
+    }
+    
+    .login-container h2 {
+        font-size: 1.8rem;
+    }
+    
+    .login-container p {
+        font-size: 1.1rem;
+    }
+    
+    .form-control, .btn-login {
+        padding: 1.1rem 1.3rem;
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-container {
+        padding: 2rem;
+        margin: 0.5rem;
+    }
+    
+    .login-logo {
+        max-width: 200px;
+        margin-bottom: 2rem;
+    }
+    
+    .login-container h2 {
+        font-size: 1.6rem;
+        margin-bottom: 2rem;
+    }
+    
+    .login-container p {
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-control, .btn-login {
+        padding: 1rem 1.2rem;
+        font-size: 1rem;
+    }
+    
+    #error-message {
+        font-size: 1rem;
+        margin-top: 1.5rem;
+    }
+}

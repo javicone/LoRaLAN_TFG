@@ -1,0 +1,545 @@
+/* ============================================================
+   CONSERJES — "Smart Building Control" aesthetic
+   Clean, data-dense, functional control panel
+   Uses: variables.css design tokens + Bricolage Grotesque
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,700;12..96,800&display=swap');
+
+/* — Reset — */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: #f2f3f0;
+    background-image:
+        linear-gradient(180deg, rgba(0,89,66,0.03) 0%, transparent 320px);
+    color: var(--texto-principal);
+    min-height: 100vh;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.control-header {
+    background: linear-gradient(135deg, #005942 0%, #003d2e 60%, #00251c 100%);
+    padding: 0 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 24px rgba(0,40,30,0.20);
+}
+
+.control-header__inner {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 68px;
+    gap: 1rem;
+}
+
+.control-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.control-header__icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: rgba(255,255,255,0.9);
+    flex-shrink: 0;
+}
+
+.control-header__title {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+.control-header__sub {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.55);
+    font-weight: 400;
+    display: block;
+    margin-top: 0.05rem;
+}
+
+.control-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* — Badges — */
+.device-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.1);
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.ws-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    transition: all 0.3s var(--ease-out);
+}
+
+.ws-badge i { font-size: 0.5rem; }
+
+.ws-badge--on {
+    color: var(--success-text);
+    background: var(--success-bg);
+}
+.ws-badge--on i { color: var(--success); }
+
+.ws-badge--off {
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.08);
+}
+
+/* Alias classes for JS compatibility */
+.status-connected {
+    color: var(--success-text);
+    background: var(--success-bg);
+}
+.status-connected i { color: var(--success); }
+
+.status-disconnected {
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.08);
+}
+
+/* — Buttons — */
+.btn-action {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.btn-action:hover {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-action--danger:hover {
+    background: rgba(197,48,48,0.35);
+    border-color: rgba(197,48,48,0.4);
+    color: #fde8e8;
+}
+
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+
+.panel-content {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* — Rooms Grid — */
+.rooms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.25rem;
+}
+
+/* — Loading / Empty States — */
+.panel-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 5rem 2rem;
+}
+
+.spinner {
+    width: 38px;
+    height: 38px;
+    border: 3px solid rgba(0,89,66,0.1);
+    border-top-color: var(--uex-verde);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+.panel-loading p,
+.panel-empty p {
+    font-size: 0.95rem;
+    color: var(--texto-terciario);
+}
+
+.panel-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 5rem 2rem;
+}
+
+.panel-empty i {
+    font-size: 2.8rem;
+    color: var(--texto-terciario);
+    opacity: 0.35;
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.panel-empty h3 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--texto-secundario);
+    margin-bottom: 0.4rem;
+}
+
+/* ============================================================
+   ROOM CARD
+   ============================================================ */
+
+.room-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid var(--borde-light);
+    box-shadow: 0 1px 4px rgba(0,40,30,0.04), 0 4px 16px rgba(0,40,30,0.04);
+    overflow: hidden;
+    transition: all 0.3s var(--ease-out);
+    animation: fadeUp 0.45s var(--ease-out) both;
+    display: flex;
+    flex-direction: column;
+}
+
+.room-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,40,30,0.06), 0 12px 36px rgba(0,40,30,0.08);
+    border-color: var(--uex-verde-20);
+}
+
+/* — Card Header — */
+.room-card__header {
+    padding: 1.2rem 1.4rem 1rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--borde-light);
+    background: linear-gradient(135deg, rgba(0,89,66,0.025) 0%, transparent 100%);
+}
+
+.room-card__name {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--uex-verde);
+    letter-spacing: -0.01em;
+}
+
+.room-card__badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+}
+
+.room-card__badge--active {
+    color: var(--success-text);
+    background: var(--success-bg);
+}
+
+.room-card__badge--inactive {
+    color: var(--texto-terciario);
+    background: var(--fondo-muted);
+}
+
+/* — Sensors Grid — */
+.room-card__sensors {
+    padding: 1rem 1.4rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+}
+
+.sensor {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    background: var(--fondo-muted);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.sensor:hover {
+    background: var(--uex-verde-light);
+}
+
+.sensor__icon {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--uex-verde-10);
+    color: var(--uex-verde);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.sensor__data {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sensor__value {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--texto-principal);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sensor__label {
+    font-size: 0.65rem;
+    color: var(--texto-terciario);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1.3;
+}
+
+/* Full-width sensor (for 5th item spanning across) */
+.sensor--wide {
+    grid-column: span 1;
+}
+
+/* — Relay Controls — */
+.room-card__controls {
+    padding: 0.8rem 1.4rem 1.2rem;
+    border-top: 1px solid var(--borde-light);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: auto;
+}
+
+.relay-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.relay-row__info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--texto-secundario);
+}
+
+.relay-row__info i {
+    font-size: 1rem;
+    color: var(--uex-verde);
+    opacity: 0.6;
+    width: 18px;
+    text-align: center;
+}
+
+.relay-row__state {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.relay-row__state--on {
+    color: var(--success-text);
+    background: var(--success-bg);
+}
+
+.relay-row__state--off {
+    color: var(--texto-terciario);
+    background: var(--fondo-muted);
+}
+
+/* — Toggle Switch — */
+.toggle {
+    position: relative;
+    display: inline-flex;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle__track {
+    width: 46px;
+    height: 26px;
+    background: #ccd5d0;
+    border-radius: 13px;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.toggle__track::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+}
+
+.toggle input:checked + .toggle__track {
+    background: var(--uex-verde);
+}
+
+.toggle input:checked + .toggle__track::before {
+    transform: translateX(20px);
+}
+
+.toggle input:focus-visible + .toggle__track {
+    outline: 2px solid var(--uex-verde);
+    outline-offset: 2px;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+}
+
+/* Live indicator pulsing dot */
+.live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--success);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 1024px) {
+    .rooms-grid {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .control-header__inner {
+        flex-direction: column;
+        padding: 0.8rem 0;
+        gap: 0.6rem;
+        min-height: auto;
+    }
+
+    .control-header__actions {
+        width: 100%;
+        justify-content: center;
+        gap: 0.4rem;
+    }
+
+    .panel-content { padding: 1rem; }
+
+    .rooms-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .room-card__sensors {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .control-header { padding: 0 1rem; }
+    .panel-content { padding: 0.75rem; }
+
+    .control-header__title { font-size: 1.05rem; }
+    .control-header__sub { display: none; }
+
+    .device-badge { display: none; }
+
+    .room-card__sensors {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 0.8rem 1rem;
+    }
+
+    .room-card__controls { padding: 0.8rem 1rem 1rem; }
+}

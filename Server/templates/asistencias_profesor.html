@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Asistencias — UEx</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           ASISTENCIAS PROFESOR — "Academic Journal" aesthetic
+           Warm, personal, refined — like a digital teaching journal
+           ============================================================ */
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            min-height: 100vh;
+            color: var(--texto-principal);
+            line-height: 1.6;
+            background-color: #f6f5f0;
+            background-image:
+                radial-gradient(circle, rgba(0,89,66,0.045) 1px, transparent 1px);
+            background-size: 22px 22px;
+        }
+
+        /* — Sticky Top Bar — */
+        .top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
+            border-bottom: 1px solid rgba(0,89,66,0.08);
+            padding: 0 2rem;
+        }
+
+        .top-bar__inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .top-bar__logo {
+            height: 34px;
+            width: auto;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+        .top-bar__logo:hover { opacity: 1; }
+
+        .top-bar__right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-logout {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--texto-secundario);
+            background: transparent;
+            border: 1.5px solid var(--borde);
+            border-radius: 8px;
+            padding: 0.5rem 1.1rem;
+            cursor: pointer;
+            transition: all 0.25s var(--ease-out);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-logout:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+            background: var(--danger-bg);
+            transform: translateY(-1px);
+        }
+
+        /* — Page Content — */
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem 4rem;
+        }
+
+        /* — Greeting Section — */
+        .greeting {
+            margin-bottom: 2.5rem;
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+
+        .greeting__title {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            color: var(--uex-verde);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .greeting__date {
+            font-size: 1rem;
+            color: var(--texto-terciario);
+            margin-top: 0.4rem;
+            font-weight: 400;
+        }
+
+        .greeting__divider {
+            width: 56px;
+            height: 3px;
+            background: var(--uex-verde);
+            border-radius: 2px;
+            margin-top: 1.2rem;
+            opacity: 0.5;
+        }
+
+        /* — Stats Hero Card — */
+        .stats-card {
+            background: linear-gradient(135deg, #005942 0%, #003d2e 55%, #00251c 100%);
+            border-radius: 20px;
+            padding: 2rem 2.5rem;
+            margin-bottom: 2.5rem;
+            color: #fff;
+            box-shadow:
+                0 8px 32px rgba(0,89,66,0.25),
+                0 2px 8px rgba(0,0,0,0.08);
+            animation: fadeUp 0.5s var(--ease-out) 0.1s both;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative corner shape */
+        .stats-card::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 160px;
+            height: 160px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .stats-card::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            left: -30px;
+            width: 200px;
+            height: 200px;
+            background: rgba(255,255,255,0.025);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .stats-card__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stats-card__heading {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            opacity: 0.95;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stats-card__month {
+            font-size: 0.9rem;
+            background: rgba(255,255,255,0.15);
+            padding: 0.3rem 0.9rem;
+            border-radius: 20px;
+            font-weight: 500;
+            backdrop-filter: blur(4px);
+        }
+
+        .stats-card__body {
+            display: flex;
+            gap: 2rem;
+            align-items: stretch;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stats-card__total {
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 16px;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stats-card__number {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+        }
+
+        .stats-card__label {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-top: 0.4rem;
+            font-weight: 400;
+        }
+
+        .stats-card__weeks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            flex: 1;
+        }
+
+        .week-chip {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            min-width: 115px;
+            flex: 1;
+            transition: all 0.25s var(--ease-out);
+        }
+        .week-chip:hover {
+            background: rgba(255,255,255,0.16);
+            transform: translateY(-2px);
+        }
+
+        .week-chip__label {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.75;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .week-chip__dates {
+            display: block;
+            font-size: 0.72rem;
+            opacity: 0.6;
+            margin-top: 0.15rem;
+        }
+
+        .week-chip__hours {
+            display: block;
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 0.3rem;
+        }
+
+        .week-chip__hours small {
+            font-size: 0.75rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        /* — History Section — */
+        .history {
+            animation: fadeUp 0.5s var(--ease-out) 0.2s both;
+        }
+
+        .history__head {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid rgba(0,89,66,0.08);
+        }
+
+        .history__heading {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--uex-verde);
+        }
+
+        .history__heading i {
+            font-size: 1.1rem;
+            opacity: 0.7;
+        }
+
+        .history__count {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--uex-verde);
+            background: var(--uex-verde-10);
+            padding: 0.2rem 0.65rem;
+            border-radius: 20px;
+        }
+
+        /* — Attendance Entry Cards — */
+        .fichajes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1rem;
+        }
+
+        .entry {
+            display: flex;
+            background: #fff;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,40,30,0.05), 0 4px 16px rgba(0,40,30,0.04);
+            transition: all 0.3s var(--ease-out);
+            animation: fadeUp 0.45s var(--ease-out) both;
+        }
+
+        .entry:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,40,30,0.08), 0 12px 32px rgba(0,40,30,0.08);
+        }
+
+        .entry__accent {
+            width: 5px;
+            flex-shrink: 0;
+            background: var(--uex-verde);
+        }
+
+        .entry__body {
+            padding: 1.25rem 1.4rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .entry__subject {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--texto-principal);
+            margin-bottom: 0.7rem;
+            line-height: 1.3;
+        }
+
+        .entry__details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .entry__detail {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-size: 0.88rem;
+            color: var(--texto-secundario);
+        }
+
+        .entry__detail i {
+            font-size: 0.85rem;
+            color: var(--uex-verde);
+            opacity: 0.65;
+            width: 16px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .entry__detail strong {
+            font-weight: 600;
+            color: var(--texto-principal);
+        }
+
+        .entry__detail--primary {
+            font-weight: 500;
+            color: var(--texto-principal);
+        }
+
+        /* — Empty / Loading / Error States — */
+        .state-message {
+            text-align: center;
+            padding: 4rem 2rem;
+            grid-column: 1 / -1;
+        }
+
+        .state-message i {
+            font-size: 2.5rem;
+            color: var(--texto-terciario);
+            opacity: 0.4;
+            display: block;
+            margin-bottom: 1rem;
+        }
+
+        .state-message p {
+            font-size: 1.05rem;
+            color: var(--texto-terciario);
+        }
+
+        .state-message--error p {
+            color: var(--danger);
+        }
+
+        .spinner-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 4rem 2rem;
+            grid-column: 1 / -1;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(0,89,66,0.12);
+            border-top-color: var(--uex-verde);
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+        }
+
+        .spinner-container p {
+            font-size: 0.95rem;
+            color: var(--texto-terciario);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* — Responsive — */
+        @media (max-width: 768px) {
+            .page { padding: 1.5rem 1rem 3rem; }
+
+            .greeting__title { font-size: 1.8rem; }
+
+            .stats-card { padding: 1.5rem; border-radius: 16px; }
+            .stats-card__body { flex-direction: column; gap: 1rem; }
+            .stats-card__total { min-width: auto; padding: 1.2rem; }
+            .stats-card__number { font-size: 2.4rem; }
+            .stats-card__weeks { flex-direction: column; }
+
+            .fichajes-grid { grid-template-columns: 1fr; }
+
+            .top-bar__inner { height: 56px; }
+            .top-bar__logo { height: 28px; }
+        }
+
+        @media (max-width: 480px) {
+            .page { padding: 1.2rem 0.75rem 2rem; }
+            .greeting__title { font-size: 1.5rem; }
+            .stats-card { padding: 1.2rem; }
+            .stats-card__number { font-size: 2rem; }
+            .entry__body { padding: 1rem 1.1rem; }
+            .btn-logout { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="top-bar__inner">
+            <img
+                src="https://www.unex.es/organizacion/servicios/servicio-de-comunicacion/recursos/identidad-corporativa/logotipos/uex-principal-verde.svg"
+                alt="Universidad de Extremadura"
+                class="top-bar__logo"
+            >
+            <div class="top-bar__right">
+                <button class="btn-logout" id="btn-logout">
+                    <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="page">
+
+        <!-- Greeting -->
+        <section class="greeting">
+            <h1 class="greeting__title" id="user-welcome">Cargando…</h1>
+            <p class="greeting__date" id="current-date"></p>
+            <div class="greeting__divider"></div>
+        </section>
+
+        <!-- Monthly Stats (hidden until data loads) -->
+        <section id="estadisticas-section" class="stats-card" style="display:none;">
+            <div class="stats-card__head">
+                <span class="stats-card__heading">
+                    <i class="bi bi-bar-chart-line"></i> Resumen Mensual
+                </span>
+                <span class="stats-card__month" id="mes-actual"></span>
+            </div>
+            <div class="stats-card__body">
+                <div class="stats-card__total">
+                    <span class="stats-card__number" id="total-horas">0</span>
+                    <span class="stats-card__label">horas totales</span>
+                </div>
+                <div class="stats-card__weeks" id="semanas-container">
+                    <!-- Week chips inserted by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Attendance History -->
+        <section class="history">
+            <div class="history__head">
+                <h2 class="history__heading"><i class="bi bi-journal-check"></i> Historial de Fichajes</h2>
+                <span class="history__count" id="fichajes-count" style="display:none;">0</span>
+            </div>
+            <div class="fichajes-grid" id="fichajes-container">
+                <!-- Cards inserted by JS — initial loading state -->
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                    <p>Cargando asistencias…</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // ================================================================
+        // DOM References
+        // ================================================================
+        const fichajesContainer   = document.getElementById('fichajes-container');
+        const userWelcome         = document.getElementById('user-welcome');
+        const estadisticasSection = document.getElementById('estadisticas-section');
+        const mesActual           = document.getElementById('mes-actual');
+        const totalHoras          = document.getElementById('total-horas');
+        const semanasContainer    = document.getElementById('semanas-container');
+        const fichajesCount       = document.getElementById('fichajes-count');
+        const currentDateEl       = document.getElementById('current-date');
+
+        // Show current date in greeting
+        (function setDate() {
+            const now = new Date();
+            const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formatted = now.toLocaleDateString('es-ES', opts);
+            currentDateEl.textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        })();
+
+        // ================================================================
+        // Render monthly statistics
+        // ================================================================
+        function renderEstadisticas(estadisticas) {
+            if (!estadisticas) {
+                estadisticasSection.style.display = 'none';
+                return;
+            }
+
+            estadisticasSection.style.display = 'block';
+            mesActual.textContent = estadisticas.mes;
+            totalHoras.textContent = estadisticas.total_mes + 'h';
+
+            semanasContainer.innerHTML = '';
+            estadisticas.semanas.forEach((semana, i) => {
+                const delay = 0.05 + i * 0.06;
+                semanasContainer.innerHTML += `
+                    <div class="week-chip" style="animation: fadeUp 0.4s var(--ease-out) ${delay}s both;">
+                        <span class="week-chip__label">Semana ${semana.semana}</span>
+                        <span class="week-chip__dates">${semana.fecha_inicio} — ${semana.fecha_fin}</span>
+                        <strong class="week-chip__hours">${semana.horas}<small>h</small></strong>
+                    </div>
+                `;
+            });
+        }
+
+        // ================================================================
+        // Render attendance entries
+        // ================================================================
+        function renderFichajes(asistencias) {
+            fichajesContainer.innerHTML = '';
+
+            if (!asistencias || asistencias.length === 0) {
+                fichajesContainer.innerHTML = `
+                    <div class="state-message">
+                        <i class="bi bi-clipboard-x"></i>
+                        <p>No hay asistencias registradas</p>
+                    </div>`;
+                fichajesCount.style.display = 'none';
+                return;
+            }
+
+            // Show count badge
+            fichajesCount.textContent = asistencias.length;
+            fichajesCount.style.display = 'inline-block';
+
+            // Sort descending (most recent first)
+            const sorted = asistencias.sort((a, b) => new Date(b.fecha_hora) - new Date(a.fecha_hora));
+
+            sorted.forEach((f, i) => {
+                const fecha = new Date(f.fecha_hora);
+                const fechaStr = fecha.toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+
+                let horario = 'Sin horario asignado';
+                if (f.hora_inicio && f.hora_fin) {
+                    const hi = new Date(f.hora_inicio).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    const hf = new Date(f.hora_fin).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    horario = `${hi} – ${hf}`;
+                }
+
+                const delay = Math.min(i * 0.05, 0.4);
+
+                fichajesContainer.innerHTML += `
+                    <article class="entry" style="animation-delay: ${delay}s">
+                        <div class="entry__accent"></div>
+                        <div class="entry__body">
+                            <h3 class="entry__subject">${f.asignatura || 'Sin asignatura'}</h3>
+                            <div class="entry__details">
+                                <span class="entry__detail entry__detail--primary">
+                                    <i class="bi bi-calendar-event"></i>
+                                    <strong>${fechaStr}</strong>
+                                </span>
+                                <span class="entry__detail">
+                                    <i class="bi bi-geo-alt"></i>
+                                    Aula: <strong>${f.nombre_aula || 'N/A'}</strong>
+                                </span>
+                                <span class="entry__detail">
+                                    <i class="bi bi-clock"></i>
+                                    Horario: <strong>${horario}</strong>
+                                </span>
+                                ${f.nombre_usuario ? `
+                                <span class="entry__detail">
+                                    <i class="bi bi-person"></i>
+                                    ${f.nombre_usuario}
+                                </span>` : ''}
+                            </div>
+                        </div>
+                    </article>
+                `;
+            });
+        }
+
+        // ================================================================
+        // Load data from API
+        // ================================================================
+        async function cargarAsistencias() {
+            try {
+                const response = await fetch('/asistencias/mis-asistencias', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
+
+                const data = await response.json();
+
+                if (data.nombre) {
+                    userWelcome.textContent = `Bienvenido, ${data.nombre}`;
+                }
+
+                renderEstadisticas(data.estadisticas);
+                renderFichajes(data.asistencias);
+
+            } catch (error) {
+                console.error('Error al cargar asistencias:', error);
+                fichajesContainer.innerHTML = `
+                    <div class="state-message state-message--error">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <p>Error al cargar las asistencias. Recarga la página para reintentar.</p>
+                    </div>`;
+            }
+        }
+
+        // ================================================================
+        // Logout
+        // ================================================================
+        function logout() {
+            sessionStorage.clear();
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        // ================================================================
+        // Init
+        // ================================================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            await cargarAsistencias();
+
+            document.getElementById('btn-logout')
+                ?.addEventListener('click', logout);
+        });
+    </script>
+</body>
+</html>
