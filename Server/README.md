@@ -40,7 +40,7 @@ Arquitectura en capas: **router** (HTTP) → **service** (lógica) → **reposit
 | `templates/` | HTML (Jinja2): login, paneles y página de error |
 | `static/` | CSS y JS de los paneles |
 | `scripts/` | Utilidades (crear usuario, migrar contraseñas) y pruebas |
-| `keys/` | Claves JWT RS256 y certificados HTTPS renombrados a `.bak` (el gateway no habla TLS) |
+| `keys/` | Certificados HTTPS renombrados a `.bak` (el gateway no habla TLS) |
 | `*.md` en la raíz | Revisiones y notas de mejoras anteriores (bcrypt, rate limit, inyecciones) |
 
 ### Routers
@@ -51,7 +51,7 @@ Arquitectura en capas: **router** (HTTP) → **service** (lógica) → **reposit
 | `panel.py` | `GET /panel/estado`, `POST /panel/rele`, `POST /panel/reset`, `POST /panel/aula` | Paneles de conserje y admin (cookie de sesión) |
 | `auth.py` | `POST /auth/device`, `POST /auth/login`, `GET /logout` | Gateway y usuarios |
 | `views.py` | `/`, `/adminPanel`, `/profesor/asistencias`, `/conserje`, `/gestion-datos` | Navegador (HTML) |
-| `asistencias.py` | `GET /asistencias/mis-asistencias`, `POST /asistencias/registro` | Profesor / heredado |
+| `asistencias.py` | `GET /asistencias/mis-asistencias` | Profesor, conserje, admin |
 | `gestion_crud.py` | `/aulas-crud`, `/clases-crud`, `/asistencias-crud` | Administrador |
 | `usuarios.py` | `/usuarios/` | Administrador |
 | `clases.py` | `/clases/actual`, `/clases/test` | Consulta del webservice de horarios |
@@ -148,9 +148,8 @@ sustituyen por un mensaje genérico para no filtrar detalles internos.
 - El webservice de horarios tiene timeout de 10 s, pero el gateway solo espera 800 ms
   por el fichaje. Si una clase no está en la BD y hay que preguntar al webservice, el
   primer intento acabará casi seguro en REINTENTAR; el reenvío ya la encontrará en BD.
-- `POST /asistencias/registro` (heredado del sistema WiFi) no pide autenticación.
-- `middleware/input_validation.py` y `security/jwt.py` (RS256) existen pero no se usan en
-  el flujo actual: el middleware no está registrado en la app y los tokens son HS256.
+- Los fichajes solo entran por `POST /gateway/fichaje` (token de gateway); el antiguo
+  `POST /asistencias/registro`, sin autenticación, se ha eliminado.
 
 ## Ejecutar
 

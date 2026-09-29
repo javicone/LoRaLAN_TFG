@@ -1,6 +1,6 @@
 import aiomysql
 import asyncio
-from database import DB_CONFIG
+from config import DB_CONFIG
 import logging
 from typing import Optional
 
@@ -23,11 +23,8 @@ async def get_db_pool() -> aiomysql.Pool:
         if _pool is not None:
             return _pool
             
-        cfg = dict(DB_CONFIG) if isinstance(DB_CONFIG, dict) else dict(vars(DB_CONFIG))
-        
-        # Mapear claves incompatibles
-        if "database" in cfg and "db" not in cfg:
-            cfg["db"] = cfg.pop("database")
+        cfg = dict(DB_CONFIG)
+        cfg["db"] = cfg.pop("database")   # aiomysql la llama "db"
         
         try:
             _pool = await aiomysql.create_pool(

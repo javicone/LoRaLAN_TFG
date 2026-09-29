@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 from jose import jwt, JWTError
-from models.asistencia import RegistroAsistencia
-from models.user import TokenData
-from services.asistencia_service import registrar_asistencia, obtener_asistencias
+from services.asistencia_service import obtener_asistencias
 from services.auth_service import SECRET_KEY, ALGORITHM
 import logging
 
@@ -10,11 +8,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/asistencias", tags=["Asistencias"])
 
-@router.post("/registro")
-async def registro_asistencia(registro: RegistroAsistencia):
-    """Registra la asistencia de un profesor desde un dispositivo específico"""
-    return await registrar_asistencia(registro.uid, registro.device_id, registro.timestamp)
-
+# Los fichajes solo entran por POST /gateway/fichaje (token de gateway).
 
 @router.get("/mis-asistencias")
 async def mis_asistencias(request: Request):

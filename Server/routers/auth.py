@@ -1,32 +1,19 @@
 """
-Router de Autenticación - Sistema Dual JWT
-
-Este módulo implementa autenticación con HS256 (simétrico) para sesiones web.
-Para entender por qué usamos HS256 aquí y RS256 en dispositivos IoT,
-consulta: DOCS/ARQUITECTURA_JWT_DUAL.md
-
-HS256 es apropiado para autenticación web porque:
-- La clave secreta nunca sale del servidor
-- Mayor velocidad de verificación
-- Menor overhead computacional
+Router de autenticación. Todos los tokens son JWT HS256 (SECRET_KEY):
+sesión web en cookie HttpOnly y token de dispositivo para el gateway.
 """
 
-from fastapi import APIRouter, Form, HTTPException, Depends
+from fastapi import APIRouter, Form, HTTPException, Depends, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt as jose_jwt, JWTError
 from config import ALGORITHM, SECRET_KEY
-from security import jwt
-from models.user import UserLogin
-from security.jwt import verify_token
 from models.webTokens import DeviceAuthRequest, TokenResponse
-from repositories.nodos import verificar_nodo_existe 
-from services.auth_service import authenticate_user 
-from services.auth_service import create_access_token
+from repositories.nodos import verificar_nodo_existe
+from services.auth_service import authenticate_user, create_access_token
 from utils.database_pool import get_db_pool
 import logging
 from repositories.usuarioRepository import get_usuario_por_mail
-from fastapi import APIRouter, Form, HTTPException, Depends, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -93,12 +80,6 @@ async def authenticate_device(request: Request, auth_request: DeviceAuthRequest)
 
 
 
-
-# Endpoint de prueba sin autenticación
-@router.get("/auth/test")
-async def test_auth():
-    """Endpoint de prueba para verificar que /auth funciona"""
-    return {"status": "ok", "message": "Auth endpoint funcionando"}
 
 @router.post("/auth/login")
 @limiter.limit("5/minute")  # Login web: 5 intentos por minuto por IP
@@ -171,7 +152,7 @@ async def verificar_token_web(request: Request, rol_requerido: str = None):
     try:
         # 2. Decodificar el token
         # Esto valida automáticamente la firma y la fecha de expiración (exp)
-        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])   # "jwt" es security.jwt aqui
+        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
         user_rol = payload.get("rol")
         user_email = payload.get("correo")
@@ -241,29 +222,16 @@ async def get_current_active_admin(request: Request, credentials: HTTPAuthorizat
             detail="No se encontró el token de autenticación (ni header ni cookie)"
         )
     
-    payload = None
-    
-    # Intentar primero HS256 (tokens de login/sesión)
     try:
         payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
-        # Si falla HS256, intentar RS256 (tokens de dispositivos nuevos)
-        try:
-            payload = verify_token(token, required_scope="admin")
-        except HTTPException:
-            # Último intento: RS256 sin validar scope específico
-            try:
-                from security.jwt import PUB, ALG, AUDIENCE
-                payload = jose_jwt.decode(token, PUB, algorithms=[ALG], audience=AUDIENCE)
-            except JWTError:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token inválido o expirado"
-                )
-    
-    # Permitir compatibilidad con tokens antiguos que usan 'rol' en vez de 'scope'
-    rol = payload.get("rol") or payload.get("scope")
-    if rol != "administrador" and rol != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado"
+        )
+
+    rol = payload.get("rol")
+    if rol != "administrador":
         logger.warning(f"⛔ Rol insuficiente: {rol}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
