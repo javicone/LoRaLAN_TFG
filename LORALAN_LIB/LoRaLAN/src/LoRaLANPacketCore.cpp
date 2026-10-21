@@ -43,7 +43,7 @@ bool LoRaLANPacket::build(
     MsgType type,
     Priority priority,
     uint8_t flags,
-    uint8_t seq,
+    uint16_t seq,
     const uint8_t* payload,
     uint8_t payloadLen,
     uint16_t& totalLen
@@ -105,24 +105,15 @@ bool LoRaLANPacket::parse(
         return false;
     }
 
-    // Verificar tamano minimo
-    if (bufferLen < LORALAN_HEADER_SIZE + LORALAN_MIC_SIZE) {
+    // Longitud total entre la trama vacia y la de payload maximo: de ella se
+    // deduce payloadLen.
+    if (bufferLen < LORALAN_HEADER_SIZE + LORALAN_MIC_SIZE ||
+        bufferLen > LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE) {
         return false;
     }
 
     // Copiar la cabecera
-    deserializeHeader(buffer, frame.header);
-
-    // Verificar longitud del payload
-    if (frame.header.payloadLen > LORALAN_MAX_PAYLOAD) {
-        return false;
-    }
-
-    // Verificar que el buffer tiene suficiente espacio
-    const uint16_t expectedLen = LORALAN_HEADER_SIZE + frame.header.payloadLen + LORALAN_MIC_SIZE;
-    if (bufferLen != expectedLen) {
-        return false;
-    }
+    deserializeHeader(buffer, bufferLen, frame.header);
 
     if (frame.header.version != LORALAN_VERSION) {
         return false;

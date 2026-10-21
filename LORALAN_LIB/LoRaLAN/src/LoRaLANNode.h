@@ -110,7 +110,7 @@ private:
     PendingPush pendingPush_{};
     // PUSH con ACK en vuelo, para casar su resultado en onProcess().
     bool pushInFlight_ = false;
-    uint8_t pushSeq_ = 0;
+    uint16_t pushSeq_ = 0;
 
     uint8_t pollPayload_[LORALAN_MAX_PAYLOAD] = {0};
     uint8_t pollPayloadLen_ = 0;
@@ -118,7 +118,7 @@ private:
 
     // Copia del PUSH en vuelo para rescatarlo hacia la ventana POLL si no llega ACK.
     bool pushFallbackArmed_ = false;
-    uint8_t pushFallbackSeq_ = 0;
+    uint16_t pushFallbackSeq_ = 0;
     uint8_t pushFallbackPayload_[LORALAN_MAX_PAYLOAD] = {0};
     uint8_t pushFallbackLen_ = 0;
 

@@ -123,11 +123,12 @@ inline bool micEquals(const uint8_t a[4], const uint8_t b[4]) {
 }
 
 // Construye el nonce CTR con netId/srcId/seq.
-inline void buildNonce(uint8_t nonce[16], uint8_t netId, uint8_t srcId, uint8_t seq) {
+inline void buildNonce(uint8_t nonce[16], uint8_t netId, uint8_t srcId, uint16_t seq) {
     memset(nonce, 0, 16);
     nonce[0] = netId;
     nonce[1] = srcId;
-    nonce[2] = seq;
+    nonce[2] = static_cast<uint8_t>(seq & 0xFF);
+    nonce[3] = static_cast<uint8_t>(seq >> 8);
 }
 
 // Cifra/descifra AES-128-CTR.

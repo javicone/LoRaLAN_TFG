@@ -74,10 +74,10 @@ protected:
 
     // Sella con el MIC y transmite una trama sin espera de ACK.
     bool sendRaw(const uint8_t* buffer, uint16_t len, const __FlashStringHelper* label);
-    bool sendAck(uint8_t dstId, uint8_t seq, const uint8_t* payload = nullptr, uint8_t payloadLen = 0);
+    bool sendAck(uint8_t dstId, uint16_t seq, const uint8_t* payload = nullptr, uint8_t payloadLen = 0);
 
     // Anti-repeticion: true si seq es nueva (y avanza lastSeq).
-    static bool acceptSeq(uint8_t seq, uint8_t& lastSeq, bool& haveSeq);
+    static bool acceptSeq(uint16_t seq, uint16_t& lastSeq, bool& haveSeq);
 
     PhysicalLayer& radio_;
     LoRaLANManager manager_;

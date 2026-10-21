@@ -118,14 +118,14 @@ private:
 
 struct FichajeReq {
     uint8_t     node;
-    uint8_t     seq;       // seq del PUSH: identifica el ACK pendiente
+    uint16_t    seq;       // seq del PUSH: identifica el ACK pendiente
     std::string uid;       // hexadecimal
     uint32_t    recibidoMs;
 };
 
 struct FichajeRes {
     uint8_t node;
-    uint8_t seq;
+    uint16_t seq;
     uint8_t code;
 };
 
@@ -168,7 +168,7 @@ static LoRaLANGateway* g_gateway = nullptr;
 // Fichajes esperando respuesta. Solo lo toca el hilo de radio.
 struct FichajePendiente {
     uint8_t  node;
-    uint8_t  seq;
+    uint16_t seq;
     uint32_t recibidoMs;
 };
 static std::vector<FichajePendiente> g_pendientes;
@@ -178,7 +178,7 @@ static std::vector<FichajePendiente> g_pendientes;
 static void onPushEvent(const LoRaLANFrame& frame, const uint8_t* payload, uint8_t payloadLen) {
     g_pushCount++;
     const uint8_t node = frame.header.srcId;
-    const uint8_t seq = frame.header.seq;
+    const uint16_t seq = frame.header.seq;
 
     const uint8_t* uid = nullptr;
     uint8_t uidLen = 0;

@@ -21,6 +21,9 @@ public:
         // true: el ACK de cada PUSH_EVENT no sale solo; la app lo envia con
         // ackPush() cuando tiene la respuesta (p. ej. del servidor).
         bool deferredPushAck = false;
+        // POLL seguidos sin ninguna trama del nodo para declararlo inactivo
+        // (0 = no detectar). Cualquier trama posterior lo reactiva.
+        uint8_t maxMissedPolls = 3;
     };
 
     // Callback de altas/bajas de nodos.
@@ -34,12 +37,13 @@ public:
     void setPollIntervalMs(uint32_t intervalMs) { pollIntervalMs_ = intervalMs; }
     void setTimeSyncIntervalMs(uint32_t intervalMs) { timeSyncIntervalMs_ = intervalMs; }
     void setDeferredPushAck(bool deferred) { deferredPushAck_ = deferred; }
+    void setMaxMissedPolls(uint8_t maxMissed) { maxMissedPolls_ = maxMissed; }
 
     // ACK diferido de un PUSH_EVENT (seq = frame.header.seq del callback), con
     // un payload corto de aplicacion. false si ese PUSH ya no esta pendiente:
     // ya respondido, sustituido por un PUSH posterior o el nodo se re-asocio.
     // Si el ACK se pierde, las retransmisiones del nodo reciben la misma respuesta.
-    bool ackPush(uint8_t nodeId, uint8_t seq, const uint8_t* payload, uint8_t payloadLen);
+    bool ackPush(uint8_t nodeId, uint16_t seq, const uint8_t* payload, uint8_t payloadLen);
 
     // Transmision manual (process() ya los envia segun los intervalos).
     bool sendTimeSync(uint32_t timestampSeconds);
@@ -55,6 +59,8 @@ public:
     void setOnPollResponse(EventCallback cb) { onPollResponse_ = cb; }
     void setOnNodeJoined(NodeStatusCallback cb) { onNodeJoined_ = cb; }
     void setOnNodeLeft(NodeStatusCallback cb) { onNodeLeft_ = cb; }
+    // Nodo asociado que ha dejado de contestar a maxMissedPolls sondeos.
+    void setOnNodeInactive(NodeStatusCallback cb) { onNodeInactive_ = cb; }
 
 private:
     enum class AckState : uint8_t { NONE, PENDING, READY };
@@ -68,14 +74,16 @@ private:
         // Anti-repeticion: ultima secuencia aceptada de este nodo. haveSeq se
         // pone a false en cada JOIN para resincronizar (un nodo que reinicia
         // arranca su contador de nuevo).
-        uint8_t lastSeq = 0;
+        uint16_t lastSeq = 0;
         bool haveSeq = false;
+        // POLL enviados desde la ultima trama recibida del nodo.
+        uint8_t missedPolls = 0;
         bool active = false;
         bool joined = false;
         // ACK diferido del ultimo PUSH: PENDING hasta ackPush(), luego READY
         // con la respuesta guardada para reenviarla a las retransmisiones.
         AckState ack = AckState::NONE;
-        uint8_t ackSeq = 0;
+        uint16_t ackSeq = 0;
         uint8_t ackLen = 0;
         uint8_t ackPayload[LORALAN_MAX_PAYLOAD] = {0};
     };
@@ -101,6 +109,7 @@ private:
     uint32_t pollIntervalMs_ = 2000UL;
     uint32_t timeSyncIntervalMs_ = 30000UL;
     bool deferredPushAck_ = false;
+    uint8_t maxMissedPolls_ = 3;
 
     NodeEntry nodes_[kMaxNodes] = {};
     uint8_t numNodes_ = 0;
@@ -112,4 +121,5 @@ private:
     EventCallback onPollResponse_ = nullptr;
     NodeStatusCallback onNodeJoined_ = nullptr;
     NodeStatusCallback onNodeLeft_ = nullptr;
+    NodeStatusCallback onNodeInactive_ = nullptr;
 };

@@ -49,7 +49,7 @@ static const uint8_t LORALAN_APP_KEY[16] = {
 
 // ---------- Alertas ----------
 #define POLLS_SIN_RESPUESTA_MAX  3
-#define DUTY_LIMITE_PCT          1.0f
+#define DUTY_LIMITE_PCT          10.0f
 
 SPIClass spiLoRa(HSPI);
 SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY, spiLoRa);
@@ -86,7 +86,7 @@ struct Nodo {
   float rssi = 0, snr = 0, rssiMedia = 0;
   uint32_t tramas = 0, reintentos = 0, perdidas = 0, micMal = 0;
   bool haySeq = false;
-  uint8_t ultSeq = 0;
+  uint16_t ultSeq = 0;
   uint8_t pollsSinResp = 0;
   bool asociado = false;
   bool tieneClave = false;
@@ -94,7 +94,7 @@ struct Nodo {
   bool haySensores = false;
   app::Sensores sensores;
   int8_t rele1 = -1, rele2 = -1;  // -1 = desconocido
-  uint8_t pushSeq = 0;
+  uint16_t pushSeq = 0;
   char pushUid[2 * app::kUidMax + 1] = "?";
   bool alertaCallado = false, alertaDuty = false;
   Ventana aire;
@@ -189,7 +189,7 @@ static void procesarTrama(const uint8_t* buf, size_t len, float rssi, float snr,
   // Huecos de seq (solo nodos; el ACK lleva la seq de la trama que confirma)
   if (h.srcId != LORALAN_GATEWAY_ID && tipo != uint8_t(MsgType::ACK)) {
     if (emisor.haySeq) {
-      const uint8_t d = h.seq - emisor.ultSeq;
+      const uint16_t d = static_cast<uint16_t>(h.seq - emisor.ultSeq);
       if (d == 0 && !retry && tipo != uint8_t(MsgType::JOIN_REQUEST)) {
         ALERTA("Seq repetida nodo %u (replay?)", h.srcId);
       } else if (d > 1 && d < 128) {

@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Version del protocolo en el wire format.
-#define LORALAN_VERSION 0x01
+#define LORALAN_VERSION 0x02
 
 // Limites del wire format.
 #define LORALAN_MAX_PAYLOAD 64
@@ -47,7 +47,7 @@ struct __attribute__((packed)) LoRaLANHeader {
     uint8_t type;           // 1 byte completo
     uint8_t priority;       // 1 byte completo
     uint8_t flags;          // 1 byte completo
-    uint8_t seq;            // Número de secuencia
+    uint16_t seq;           // Número de secuencia (16 bits: bytes 5 y 6)
     uint8_t payloadLen;     // Longitud del payload
 };
 
@@ -69,7 +69,7 @@ public:
         MsgType type,
         Priority priority,
         uint8_t flags,
-        uint8_t seq,
+        uint16_t seq,
         const uint8_t* payload,
         uint8_t payloadLen,
         uint16_t& totalLen
@@ -109,7 +109,7 @@ public:
         uint8_t netId,
         uint8_t srcId,
         uint8_t dstId,
-        uint8_t seqToAck,
+        uint16_t seqToAck,
         uint16_t& totalLen,
         const uint8_t* payload = nullptr,
         uint8_t payloadLen = 0
@@ -120,7 +120,7 @@ public:
         uint8_t netId,
         uint8_t srcId,
         uint8_t dstId,
-        uint8_t seq,
+        uint16_t seq,
         uint16_t& totalLen
     );
 
@@ -131,7 +131,7 @@ public:
         uint8_t srcId,
         uint8_t nodeType,
         uint16_t devNonce,
-        uint8_t seq,
+        uint16_t seq,
         uint16_t& totalLen
     );
 
@@ -144,7 +144,7 @@ public:
         uint8_t assignedId,
         uint16_t devNonce,
         uint8_t status,
-        uint8_t seq,
+        uint16_t seq,
         uint16_t& totalLen
     );
 
@@ -154,7 +154,7 @@ public:
         uint8_t netId,
         uint8_t srcId,
         uint32_t timestamp,
-        uint8_t seq,
+        uint16_t seq,
         uint16_t& totalLen
     );
 

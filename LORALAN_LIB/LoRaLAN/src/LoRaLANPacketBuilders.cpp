@@ -6,7 +6,7 @@ bool LoRaLANPacket::buildAck(
     uint8_t netId,
     uint8_t srcId,
     uint8_t dstId,
-    uint8_t seqToAck,
+    uint16_t seqToAck,
     uint16_t& totalLen,
     const uint8_t* payload,
     uint8_t payloadLen
@@ -26,13 +26,16 @@ bool LoRaLANPacket::buildAck(
     );
 }
 
-// Constructor POLL (requiere ACK).
+// Constructor POLL. No pide ACK: la POLL_RESPONSE ya acredita que llego. Si
+// lo pidiera, el nodo enviaria ese ACK justo cuando el gateway confirma la
+// respuesta y, al ser la radio half-duplex, perderia esa confirmacion y
+// retransmitiria la respuesta en cada sondeo.
 bool LoRaLANPacket::buildPoll(
     uint8_t* buffer,
     uint8_t netId,
     uint8_t srcId,
     uint8_t dstId,
-    uint8_t seq,
+    uint16_t seq,
     uint16_t& totalLen
 ) {
     return build(
@@ -42,7 +45,7 @@ bool LoRaLANPacket::buildPoll(
         dstId,
         MsgType::POLL,
         Priority::PRIO_LOW,
-        static_cast<uint8_t>(Flags::ACK_REQUIRED),
+        0,  // Sin flags especiales
         seq,
         nullptr,
         0,
@@ -57,7 +60,7 @@ bool LoRaLANPacket::buildJoinRequest(
     uint8_t srcId,
     uint8_t nodeType,
     uint16_t devNonce,
-    uint8_t seq,
+    uint16_t seq,
     uint16_t& totalLen
 ) {
     uint8_t payload[3] = {
@@ -90,7 +93,7 @@ bool LoRaLANPacket::buildJoinAccept(
     uint8_t assignedId,
     uint16_t devNonce,
     uint8_t status,
-    uint8_t seq,
+    uint16_t seq,
     uint16_t& totalLen
 ) {
     uint8_t payload[4] = {
@@ -121,7 +124,7 @@ bool LoRaLANPacket::buildTimeSync(
     uint8_t netId,
     uint8_t srcId,
     uint32_t timestamp,
-    uint8_t seq,
+    uint16_t seq,
     uint16_t& totalLen
 ) {
     // Convertimos el timestamp a bytes

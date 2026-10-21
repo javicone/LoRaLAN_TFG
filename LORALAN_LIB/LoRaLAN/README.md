@@ -107,7 +107,35 @@ Basado en una clave precompartida maestra (APPKEY 128 bits) entre gateways y nod
 
 	- Podríamos hacer un mecanismo hibrido que posea direccionamiento dinámico y direccionamiento estático pero aumentaría la complejidad y quizá no merezca la pena.
 
-- **Anti-Replay:** Validado estrictamente mediante el emparejamiento criptografico del campo SEQ.
+- **Anti-Replay:** El campo SEQ (1 byte) va en la cabecera y esta cubierto por el MIC, asi que no se puede alterar. El gateway acepta una trama de un nodo solo si su SEQ esta entre 1 y 64 por delante del ultimo aceptado (`acceptSeq`, `LoRaLANDevice.cpp`); el duplicado exacto y los valores lejanos se descartan. Un JOIN nuevo reinicia la ventana.
+
+### Limitaciones conocidas del anti-replay
+
+Son decisiones conscientes para un entorno controlado; no estan corregidas en la version actual.
+
+1. **Vuelta del SEQ.** Cada nodo gasta un SEQ por trama que envia (respuesta a cada POLL y cada fichaje). Con 8 bits, el contador da la vuelta cada ~256 tramas, es decir, cada ~256·X min con un POLL cada X min:
+
+   | POLL cada | Vuelta del SEQ |
+   |---|---|
+   | 5 min | ~21 h |
+   | 15 min | ~2,7 dias |
+   | 30 min | ~5 dias |
+
+   Tras la vuelta, una trama grabada con un SDR vuelve a caer en la ventana durante 64 tramas y, como su MIC sigue siendo valido (misma clave de sesion), el gateway la acepta. El riesgo concreto es repetir un fichaje de un profesor en otra clase suya en ese aula.
+
+   De paso, la misma clave con el mismo SEQ reutiliza el nonce de AES-CTR. El impacto es bajo: el UID de una tarjeta MIFARE no es secreto (lo lee cualquier lector NFC) y el CMAC no usa nonce, asi que no permite falsificar tramas.
+
+2. **JOIN antiguo.** El gateway solo rechaza el *ultimo* DevNonce de cada nodo (`LoRaLANGateway::onJoinRequest`). Si se reinyecta un JOIN_REQUEST anterior, el gateway vuelve a derivar aquella clave de sesion y reinicia la ventana, con lo que las tramas grabadas en esa sesion vuelven a ser validas de inmediato.
+
+3. **Comandos hacia el nodo.** El nodo no aplica la ventana de SEQ a lo que le llega del gateway (`LoRaLANNode::onCommand`), asi que un CMD de rele o de reset grabado se puede repetir en cualquier momento de la sesion.
+
+**Mitigacion propuesta (no implementada):**
+- Re-JOIN desde el nodo antes de que su SEQ de la vuelta (p. ej. a las ~192 tramas): clave nueva, y lo grabado deja de valer. Cuesta un JOIN cada varios dias.
+- DevNonce creciente en lugar de aleatorio, guardado en NVS en el nodo y en un fichero en el gateway, aceptando solo valores mayores que el ultimo.
+- Ventana de SEQ tambien en el nodo para las tramas del gateway.
+- Alternativa: un contador implicito de 32 bits en el nonce y en el MIC, del que solo viaja el byte bajo (como el FCnt de LoRaWAN). No cambia el formato ni el ToA.
+
+**Sobre el ToA:** alargar el SEQ a 4 bytes en el aire cuesta unos +5 ms por trama con SF7/BW125/CR4/5 (la trama de sensores pasa de ~56,6 a ~61,7 ms). Con un POLL cada varios minutos es despreciable para el ciclo de trabajo.
 
 **Futuro (no implementado):** Se puede estudiar un JOIN con intercambio de claves (p. ej. Diffie-Hellman) para eliminar la dependencia total de la APPKEY. Esto no forma parte de la libreria actual.
 

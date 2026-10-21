@@ -4,14 +4,14 @@ namespace {
 
 // Ventana de aceptacion del numero de secuencia.
 //
-// El campo seq es de 1 byte, asi que la comparacion es modular. Se acepta una
-// trama cuyo seq este por delante del ultimo aceptado dentro de esta ventana;
-// se rechaza el duplicado exacto (delta 0) y cualquier valor muy alejado, que
-// corresponde a una repeticion antigua.
+// El campo seq es de 2 bytes, asi que la comparacion es modular (2^16). Se
+// acepta una trama cuyo seq este por delante del ultimo aceptado dentro de
+// esta ventana; se rechaza el duplicado exacto (delta 0) y cualquier valor muy
+// alejado, que corresponde a una repeticion antigua.
 //
-// 64 es un cuarto del espacio de secuencia: tolera perder hasta 63 tramas
-// consecutivas de un nodo sin desincronizarse, y deja fuera de la ventana las
-// tramas capturadas hace tiempo. Si un nodo reinicia, su contador vuelve a
+// 64 tolera perder hasta 63 tramas consecutivas de un nodo sin
+// desincronizarse, y deja fuera de la ventana las tramas capturadas hace
+// tiempo: una trama vieja solo volveria a entrar tras 65536 tramas nuevas. Si un nodo reinicia, su contador vuelve a
 // empezar, pero entonces re-JOIN y el JOIN resincroniza (haveSeq = false).
 constexpr uint8_t kSeqWindow = 64;
 
@@ -110,7 +110,7 @@ const uint8_t* LoRaLANDevice::micKeyFor(uint8_t msgType, uint8_t peerId, uint8_t
     return sessionKeyFor(peerId);
 }
 
-bool LoRaLANDevice::sendAck(uint8_t dstId, uint8_t seq, const uint8_t* payload, uint8_t payloadLen) {
+bool LoRaLANDevice::sendAck(uint8_t dstId, uint16_t seq, const uint8_t* payload, uint8_t payloadLen) {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
 
@@ -179,14 +179,14 @@ LoRaLANDevice::ChannelState LoRaLANDevice::checkChannel() {
     return result == RADIOLIB_CHANNEL_FREE ? ChannelState::FREE : ChannelState::ERROR;
 }
 
-bool LoRaLANDevice::acceptSeq(uint8_t seq, uint8_t& lastSeq, bool& haveSeq) {
+bool LoRaLANDevice::acceptSeq(uint16_t seq, uint16_t& lastSeq, bool& haveSeq) {
     if (!haveSeq) {          // primera trama de la sesion: fija el origen
         haveSeq = true;
         lastSeq = seq;
         return true;
     }
 
-    const uint8_t delta = static_cast<uint8_t>(seq - lastSeq);
+    const uint16_t delta = static_cast<uint16_t>(seq - lastSeq);
     if (delta == 0 || delta > kSeqWindow) {
         return false;
     }

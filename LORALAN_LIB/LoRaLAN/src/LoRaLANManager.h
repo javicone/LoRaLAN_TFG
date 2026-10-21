@@ -41,14 +41,14 @@ public:
     }
 
     // Contador monotono de secuencia.
-    uint8_t nextSequence() {
+    uint16_t nextSequence() {
         return nextSeq_++;
     }
 
     // Encola un buffer y espera ACK con reintentos.
     bool enqueueReliableTx(const uint8_t* buffer,
                            uint16_t len,
-                           uint8_t seq,
+                           uint16_t seq,
                            const __FlashStringHelper* label,
                            uint8_t maxAttempts,
                            uint32_t ackTimeoutMs,
@@ -108,7 +108,7 @@ public:
                           uint8_t flags,
                           const uint8_t* payload,
                           uint8_t payloadLen,
-                          uint8_t seq,
+                          uint16_t seq,
                           uint8_t* outBuffer,
                           uint16_t& outLen,
                           const uint8_t* key = nullptr) {
@@ -124,7 +124,7 @@ public:
         }
 
         uint8_t encryptedPayload[LORALAN_MAX_PAYLOAD];
-        const uint8_t frameSeq = seq;
+        const uint16_t frameSeq = seq;
 
         const uint8_t* payloadToSend = payload;
         if (payloadLen > 0) {
@@ -161,10 +161,10 @@ public:
                     const __FlashStringHelper* label,
                     uint8_t maxAttempts,
                     uint32_t ackTimeoutMs,
-                    uint8_t* outSeq = nullptr) {
+                    uint16_t* outSeq = nullptr) {
         uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
         uint16_t len = 0;
-        const uint8_t seq = nextSequence();
+        const uint16_t seq = nextSequence();
 
         if (!buildSecureFrame(dstId, type, priority, flags, payload, payloadLen, seq, buffer, len)) {
             return false;
@@ -218,7 +218,7 @@ public:
     }
 
     // Consume el resultado del ultimo TX fiable terminado (ACK ok o agotado).
-    bool takeTxResult(uint8_t& seq, bool& acked) {
+    bool takeTxResult(uint16_t& seq, bool& acked) {
         if (!hasNewResult_) {
             return false;
         }
@@ -236,7 +236,7 @@ public:
     }
 
     // Marca ACK recibido para el TX pendiente y guarda su payload.
-    void notifyAck(uint8_t seq, const uint8_t* payload = nullptr, uint8_t payloadLen = 0) {
+    void notifyAck(uint16_t seq, const uint8_t* payload = nullptr, uint8_t payloadLen = 0) {
         if (txState_ == TxState::WAIT_ACK && pendingTx_.active && pendingTx_.seq == seq) {
             ackForPendingTx_ = true;
             ackLen_ = (payload != nullptr && payloadLen <= LORALAN_MAX_PAYLOAD) ? payloadLen : 0;
@@ -309,7 +309,7 @@ private:
         uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
         uint8_t micKey[16] = {0};   // clave con la que se sella este envio
         uint16_t len = 0;
-        uint8_t seq = 0;
+        uint16_t seq = 0;
         uint8_t attempts = 0;
         uint8_t maxAttempts = 0;
         uint32_t ackTimeoutMs = 0;
@@ -445,7 +445,7 @@ private:
     PhysicalLayer& radio_;
     uint8_t netId_ = 0;
     uint8_t localNodeId_ = 0;
-    uint8_t nextSeq_ = 0;
+    uint16_t nextSeq_ = 0;
     uint8_t sessionKey_[16];
     bool hasSessionKey_ = false;
     TxState txState_ = TxState::IDLE;
@@ -453,7 +453,7 @@ private:
     uint8_t ackPayload_[LORALAN_MAX_PAYLOAD] = {0};   // ACK del TX en curso
     uint8_t ackLen_ = 0;
     PendingTxContext pendingTx_{};
-    uint8_t lastResultSeq_ = 0;
+    uint16_t lastResultSeq_ = 0;
     bool lastResultAcked_ = false;
     uint8_t lastAckPayload_[LORALAN_MAX_PAYLOAD] = {0};
     uint8_t lastAckLen_ = 0;

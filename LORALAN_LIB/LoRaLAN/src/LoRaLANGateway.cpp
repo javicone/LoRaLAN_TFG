@@ -10,6 +10,7 @@ void LoRaLANGateway::begin(const Config& config) {
     pollIntervalMs_ = config.pollIntervalMs;
     timeSyncIntervalMs_ = config.timeSyncIntervalMs;
     deferredPushAck_ = config.deferredPushAck;
+    maxMissedPolls_ = config.maxMissedPolls;
     manager_.setIdentity(config.netId, config.gatewayId);
     resetNodeTable();
 }
@@ -21,13 +22,14 @@ LoRaLANGateway::Config LoRaLANGateway::getConfig() const {
     cfg.pollIntervalMs = pollIntervalMs_;
     cfg.timeSyncIntervalMs = timeSyncIntervalMs_;
     cfg.deferredPushAck = deferredPushAck_;
+    cfg.maxMissedPolls = maxMissedPolls_;
     return cfg;
 }
 
 bool LoRaLANGateway::sendTimeSync(uint32_t timestampSeconds) {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     if (!LoRaLANPacket::buildTimeSync(buffer, base_.netId, localId_, timestampSeconds, seq, len)) {
         return false;
@@ -39,7 +41,7 @@ bool LoRaLANGateway::sendTimeSync(uint32_t timestampSeconds) {
 bool LoRaLANGateway::sendPoll(uint8_t nodeId) {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     if (!LoRaLANPacket::buildPoll(buffer, base_.netId, localId_, nodeId, seq, len)) {
         return false;
@@ -60,7 +62,7 @@ bool LoRaLANGateway::sendCommand(uint8_t nodeId, const uint8_t* payload, uint8_t
 
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     // Cifrado con la session key del nodo y nonce(netId, gatewayId, seq),
     // simetrico a lo que espera manager_.decryptPayload en el nodo.
@@ -145,6 +147,7 @@ bool LoRaLANGateway::onJoinRequest(const LoRaLANFrame& frame) {
     }
     nodes_[idx].lastSeen = millis();
     nodes_[idx].active = true;
+    nodes_[idx].missedPolls = 0;
     nodes_[idx].lastDevNonce = devNonce;
     nodes_[idx].joined = true;
     // Sesion nueva: se resincroniza el contador de secuencia, de modo que un
@@ -175,6 +178,7 @@ void LoRaLANGateway::onNodeData(const LoRaLANFrame& frame, EventCallback cb) {
     if (idx >= 0) {
         nodes_[idx].lastSeen = millis();
         nodes_[idx].active = true;
+        nodes_[idx].missedPolls = 0;
 
         // Anti-repeticion. Una trama ya vista NO se entrega otra vez a la app,
         // pero onFrame devuelve true igualmente para que se reenvie el ACK: si
@@ -189,7 +193,7 @@ void LoRaLANGateway::onNodeData(const LoRaLANFrame& frame, EventCallback cb) {
 
 void LoRaLANGateway::onDeferredPush(const LoRaLANFrame& frame) {
     const uint8_t src = frame.header.srcId;
-    const uint8_t seq = frame.header.seq;
+    const uint16_t seq = frame.header.seq;
     const int idx = findNodeIndex(src);
     if (idx < 0) {
         return;
@@ -197,6 +201,7 @@ void LoRaLANGateway::onDeferredPush(const LoRaLANFrame& frame) {
     NodeEntry& node = nodes_[idx];
     node.lastSeen = millis();
     node.active = true;
+    node.missedPolls = 0;
 
     if (!acceptSeq(seq, node.lastSeq, node.haveSeq)) {
         // Retransmision: el nodo no recibio el ACK. No se entrega otra vez a la app.
@@ -216,7 +221,7 @@ void LoRaLANGateway::onDeferredPush(const LoRaLANFrame& frame) {
     deliverNodeData(frame, onPushEvent_);
 }
 
-bool LoRaLANGateway::ackPush(uint8_t nodeId, uint8_t seq, const uint8_t* payload, uint8_t payloadLen) {
+bool LoRaLANGateway::ackPush(uint8_t nodeId, uint16_t seq, const uint8_t* payload, uint8_t payloadLen) {
     const int idx = findNodeIndex(nodeId);
     if (idx < 0 || payloadLen > LORALAN_MAX_PAYLOAD || (payloadLen > 0 && payload == nullptr)) {
         return false;
@@ -255,7 +260,7 @@ void LoRaLANGateway::deliverNodeData(const LoRaLANFrame& frame, EventCallback cb
 bool LoRaLANGateway::sendJoinAccept(uint8_t dstId, uint8_t assignedId, uint16_t devNonce, uint8_t status) {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     if (!LoRaLANPacket::buildJoinAccept(buffer, base_.netId, localId_, dstId, assignedId, devNonce, status, seq, len)) {
         return false;
@@ -264,7 +269,8 @@ bool LoRaLANGateway::sendJoinAccept(uint8_t dstId, uint8_t assignedId, uint16_t 
     return sendRaw(buffer, len, F("JOIN_ACCEPT"));
 }
 
-// Tareas periodicas: TIME_SYNC y POLL round-robin.
+// Tareas periodicas: TIME_SYNC y POLL round-robin. Se sondean todos los nodos
+// asociados, tambien los inactivos, para que puedan reactivarse al contestar.
 void LoRaLANGateway::onProcess() {
     const uint32_t now = millis();
 
@@ -276,10 +282,22 @@ void LoRaLANGateway::onProcess() {
     if (pollIntervalMs_ > 0 && now - lastPollMs_ >= pollIntervalMs_ && numNodes_ > 0) {
         for (uint8_t attempts = 0; attempts < numNodes_; ++attempts) {
             const uint8_t idx = pollIndex_++ % numNodes_;
-            if (nodes_[idx].active && nodes_[idx].joined) {
-                sendPoll(nodes_[idx].nodeId);
-                break;
+            NodeEntry& node = nodes_[idx];
+            if (!node.joined) {
+                continue;
             }
+            // Ninguna trama del nodo en los ultimos maxMissedPolls sondeos.
+            if (maxMissedPolls_ > 0 && node.active && node.missedPolls >= maxMissedPolls_) {
+                node.active = false;
+                if (onNodeInactive_ != nullptr) {
+                    onNodeInactive_(node.nodeId, node.nodeType);
+                }
+            }
+            if (node.missedPolls < 255) {
+                node.missedPolls++;
+            }
+            sendPoll(node.nodeId);
+            break;
         }
         lastPollMs_ = now;
     }

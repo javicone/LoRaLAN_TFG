@@ -79,7 +79,7 @@ bool LoRaLANNode::leave() {
 
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     // ponytail: LEAVE sin ACK; si se pierde, el gateway lo detecta igual via isAlive()
     const bool ok = LoRaLANPacket::build(buffer, base_.netId, localId_, gatewayId_,
@@ -201,7 +201,7 @@ void LoRaLANNode::onProcess() {
         lastJoinAttemptMs_ = now;
     }
 
-    uint8_t doneSeq = 0;
+    uint16_t doneSeq = 0;
     bool doneAcked = false;
     if (manager_.takeTxResult(doneSeq, doneAcked)) {
         // Si el PUSH con fallback agoto reintentos sin ACK, el payload se
@@ -230,7 +230,7 @@ void LoRaLANNode::sendJoinRequest() {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
     lastDevNonce_ = static_cast<uint16_t>(random(0, 0xFFFF));
-    const uint8_t seq = manager_.nextSequence();
+    const uint16_t seq = manager_.nextSequence();
 
     if (!LoRaLANPacket::buildJoinRequest(buffer, base_.netId, localId_, nodeType_, lastDevNonce_, seq, len)) {
         return;
@@ -275,7 +275,7 @@ void LoRaLANNode::processPendingPush() {
         }
     }
 
-    uint8_t seq = 0;
+    uint16_t seq = 0;
     const bool ok = manager_.sendPacket(gatewayId_, MsgType::PUSH_EVENT, Priority::PRIO_HIGH,
                                         pendingPush_.flags, pendingPush_.payload, pendingPush_.payloadLen,
                                         F("PUSH_EVENT"), base_.appMaxRetries, base_.appAckTimeoutMs, &seq);
