@@ -1,0 +1,9 @@
+\renewcommand{\keywords}{{\itshape \bfseries Keywords - }}
+\chapter*{Abstract}
+
+
+LPWAN technologies, particularly LoRa, enable long-range wireless communications with low power consumption, making them an attractive option for IoT applications. However, LoRaWAN, their most widely adopted protocol, is designed for large-scale deployments and presents limitations for local applications requiring bidirectional communication and low latency. This Final Degree Thesis presents LoRaLAN, a local area network protocol designed directly on top of the LoRa physical layer, and its application to a teacher attendance system based on NFC cards and classroom monitoring.
+
+LoRaLAN employs a star topology and combines a periodic polling mechanism for routine traffic with asynchronous transmission of urgent events using Channel Activity Detection (CAD). It also incorporates addressing, medium access control, and message protection mechanisms based on encryption and authentication. Its implementation is provided as a platform-independent library, executable on both ESP32 and Raspberry Pi platforms, as well as in a PC-based simulator. The evaluation combines radio environment characterization using software-defined radio (SDR), experiments over a simulated channel, and functional validation on the hardware.
+
+\keywords{LoRa, LoRaLAN, LPWAN, IoT, wireless communication protocols, NFC, access control, software-defined radio.}

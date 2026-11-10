@@ -1,0 +1,7 @@
+mundo,t_ms,evento,disp,tipo,seq,flags,long,motivo,valor,detalle
+1,2028352,TX,99,CMD,1,1,15,,0,
+1,2028399,RX_DROP,0,CMD,1,1,15,NOT_ADDRESSED,0,
+1,2028399,APP_CMD,1,CMD,1,0,4,,0,
+1,2028399,TX,1,ACK,1,0,11,,0,
+1,2028399,RX_OK,1,CMD,1,1,15,,0,
+1,2028441,RX_OK,0,ACK,1,0,11,,0,

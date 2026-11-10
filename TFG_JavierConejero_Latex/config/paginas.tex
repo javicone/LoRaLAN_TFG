@@ -1,0 +1,41 @@
+
+%----------Espaciado y ajuste de márgenes----------
+\usepackage{setspace}
+\onehalfspacing
+\setlength{\textwidth}{15cm}
+\setlength{\textheight}{22cm}
+\setlength\oddsidemargin{1cm}
+\setlength\evensidemargin{0cm}
+\setlength{\headheight}{14.5pt}
+% Personalizamos la separación entre párrafos...
+\parskip=6pt
+
+%-------------------------------------------------
+
+
+% Para evitar lineas huérfanas
+\widowpenalty=10000
+\clubpenalty=10000
+
+
+%-------------------Encabezado de página------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+%La seccion (\rightmark) va a aparecer en:
+	%Páginas impares: a la izquierda.
+\fancyhead[LO]{\slshape \bfseries \nouppercase \rightmark}
+%El capítulo (\leftmark) va a aparecer en:	
+	%Páginas pares: a la derecha.
+\fancyhead[RE]{\slshape \bfseries \nouppercase \leftmark}
+%El número de página va a aparecer en:
+	%Páginas pares: izquierda.
+	%Páginas impares: derecha.
+\fancyhead[RO,LE]{\bfseries \thepage}
+
+%----------------------------------------------------------
+
+
+%\pretolerance=10000 
+%\tolerance=3000     
+%\setlength{\parskip}{\baselineskip} 

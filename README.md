@@ -23,7 +23,8 @@ ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI +
 | `gatewayLoRaLAN/` | Programa C++ que corre en la Raspberry Pi con un SX1276 por SPI. Hace de puente entre la radio y el servidor | [README](gatewayLoRaLAN/README.md) |
 | `Server/` | Backend FastAPI y paneles web para profesor, conserje y administrador | [README](Server/README.md) |
 | `Database/` | Esquema MySQL y migración para la versión LoRaLAN | [README](Database/README.md) |
-| `LORALAN_LIB/LoRaLAN/` | Biblioteca LoRaLAN (gateway, nodo, paquetes, MIC y cifrado) que usan el nodo y el gateway | [README](LORALAN_LIB/LoRaLAN/README.md) |
+| `LORALAN_LIB/LoRaLAN/` | Biblioteca LoRaLAN (gateway, nodo, paquetes, MIC y cifrado) que usan el nodo y el gateway. Incluye una guía para asistentes de IA en `skills/loralan/SKILL.md` | [README](LORALAN_LIB/LoRaLAN/README.md) |
+| `LORALAN_LIB/sim_LoRaLAN/` | Simulador de PC que ejecuta la biblioteca sin modificar: batería de 87 casos y experimentos de rendimiento (capítulo 6 del TFG) | [README](LORALAN_LIB/sim_LoRaLAN/README.md) |
 | `MonitorCardputer/` | Monitor pasivo de la red en un M5Stack Cardputer (SX1262): solo escucha, muestra tramas, nodos y fichajes | [README](MonitorCardputer/README.md) |
 | `NodoSimuladoLilyGo/` | Nodo de aula simulado en una LilyGo T3: mismos mensajes que el nodo real, con sensores y fichajes inventados | [README](NodoSimuladoLilyGo/README.md) |
 | `TestPCB/` | Sketch que prueba uno a uno los componentes de la PCB del nodo, por monitor serie | `TestPCB.ino` |
@@ -205,6 +206,18 @@ Servidor (sin MySQL; la BD se sustituye por funciones falsas):
 cd Server
 python -m pytest scripts/test_gateway_panel.py -q
 ```
+
+Simulador del protocolo (Windows, con el g++ de MSYS2 en el `PATH`), desde
+`LORALAN_LIB/sim_LoRaLAN/`:
+
+```bash
+cmake -G "MinGW Makefiles" -S . -B build
+cmake --build build
+build/sim_tests --all --out results
+```
+
+Los veredictos se comparan con `results/casos.csv`. Detalle en
+[LORALAN_LIB/sim_LoRaLAN/README.md](LORALAN_LIB/sim_LoRaLAN/README.md).
 
 ---
 

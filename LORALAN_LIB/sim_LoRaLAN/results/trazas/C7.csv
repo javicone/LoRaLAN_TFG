@@ -1,0 +1,6 @@
+mundo,t_ms,evento,disp,tipo,seq,flags,long,motivo,valor,detalle
+0,2030352,TX,0,CMD,33003,1,21,,0,
+0,2030409,APP_CMD,1,CMD,33003,0,10,,0,
+0,2030409,TX,1,ACK,33003,0,11,,0,
+0,2030409,RX_OK,1,CMD,33003,1,21,,0,
+0,2030451,RX_OK,0,ACK,33003,0,11,,0,

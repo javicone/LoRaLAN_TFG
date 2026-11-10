@@ -1,0 +1,117 @@
+\chapter{Introducción}\label{chap:1}
+
+\section{Antecedentes y Contextualización}
+
+Internet de las Cosas (IoT, \textit{Internet of Things}) ha experimentado en la última década un crecimiento sostenido que ha transformado la forma en la que se monitorizan y controlan los entornos físicos. Se estima que el número de dispositivos conectados superará ampliamente las decenas de miles de millones durante esta década~\cite{chaudhari2020lpwan}.  
+
+Se denomina IoT a la red de objetos físicos conectados a internet mediante software, sensores y otras tecnologías que son capaces de recopilar e intercambiar datos, facilitando la comunicación y la automatización. IoT abarca objetos cotidianos como electrodomésticos, vehículos e incluso ropa. Esta interconexión permite el monitoreo, control y análisis remotos, lo que impulsa la eficiencia, la conveniencia y la innovación en varios sectores, desde hogares inteligentes y atención médica hasta fabricación y transporte~\cite{fortinet_iot}.
+
+
+IoT también está presente en aplicaciones de otros ámbitos, como la agricultura inteligente, la monitorización ambiental, la automatización industrial y la gestión de edificios. Por ejemplo, los sensores desplegados en explotaciones agrícolas permiten recopilar información sobre los cultivos y las condiciones ambientales para mejorar la gestión de los recursos, mientras que en los edificios pueden utilizarse para supervisar variables como la temperatura, la ocupación o el consumo energético~\cite{comisionEuropeaIoT,uit2023agricultura}. 
+ 
+Para interconectar dispositivos en IoT, se recurre normalmente a comunicaciones inalámbricas. Los métodos empleados se clasifican atendiendo a factores como el alcance, la tasa de transmisión, el consumo energético y la infraestructura necesaria para su funcionamiento.  
+
+Entre las principales categorías se encuentran las redes de área local inalámbricas (WLAN, \textit{Wireless Local Area Network}), como Wi-Fi, que ofrecen tasas de transmisión elevadas y permiten integrar los dispositivos en infraestructuras de red existentes, aunque su consumo energético puede resultar limitante para determinados dispositivos si la alimentación es mediante baterías.
+
+Por otro lado, están las redes de área personal inalámbricas (WPAN, \textit{Wireless Personal Area Network}), como Bluetooth Low Energy (BLE) y las tecnologías basadas en IEEE 802.15.4 (LR-WPAN), como Zigbee, las cuales están orientadas a comunicaciones de corto alcance y bajo consumo.
+
+A su vez, las redes celulares permiten comunicaciones de largo alcance mediante infraestructuras gestionadas por operadores, ofreciendo tecnologías como LTE y 5G para aplicaciones de alta capacidad. También existen variantes específicas para IoT, como NB-IoT y LTE-M, que priorizan la eficiencia energética y la cobertura.
+
+No existe una tecnología perfecta para todos los escenarios; según las necesidades específicas de cada aplicación se recurre a una tecnología de comunicación o a otra.
+
+Como alternativa a estas, surgen las redes LPWAN (\textit{Low Power Wide Area Network}), que se caracterizan por ofrecer transmisión de gran alcance con un consumo energético reducido, a costa de ofrecer una tasa de datos menor~\cite{chaudhari2020lpwan,song2017internet}. Con una potencia de transmisión limitada, el aumento del alcance exige mejorar la sensibilidad del receptor, lo que se consigue reduciendo la tasa de transmisión y, por tanto, aumentando el tiempo en el aire de cada trama. Las LPWAN asumen deliberadamente este compromiso, sacrificando tasa de datos, para obtener enlaces de varios kilómetros y autonomías de años con baterías convencionales. Dentro de esta categoría de redes destacan Sigfox, NB-IoT, LTE-M y LoRa.
+
+La capa física LoRa (\textit{Long Range}), en la cual se centra este trabajo, es una de las tecnologías más utilizadas en IoT. Desarrollada por Semtech, propietaria de la tecnología, emplea una modulación de espectro ensanchado por \textit{chirp} (CSS, \textit{Chirp Spread Spectrum}), y su popularidad se debe a que opera en bandas ISM (\textit{Industrial, Scientific and Medical}) libres de licencia (433 y 868~MHz en Europa) y ofrece enlaces de varios kilómetros con potencias de transmisión muy bajas~\cite{devalal2018lora}.
+
+Sobre esta capa física, existe un estándar abierto denominado LoRaWAN, mantenido por la LoRa Alliance, que define la capa de acceso al medio y una arquitectura de red en estrella de estrellas orientada a despliegues de gran escala en entornos rurales o metropolitanos~\cite{sornin2015lorawan}. Su acceso al medio está basado en un esquema de tipo ALOHA. En contrapartida, presenta restricciones de ciclo de trabajo (\textit{duty cycle}) impuestas en las bandas ISM y prioriza la simplicidad y el bajo consumo de los nodos frente a la latencia y la predictibilidad de las comunicaciones.
+
+Este Trabajo de Fin de Grado se desarrolla en torno a espacios inteligentes de área local, en los que las distancias son menores, el número de nodos es moderado y, sobre todo, las aplicaciones exigen baja latencia y una tasa de datos media, características que LoRaWAN no garantiza por defecto~\cite{farahani2026sdlora,arregui2025gatewayfree}. Como caso de uso de referencia, se toma un sistema de control de asistencia y monitorización de aulas desarrollado sobre ESP32, que originalmente utilizaba WiFi como mecanismo de conexión y donde se realiza una migración a LoRa mediante un protocolo propio.
+
+
+
+
+
+
+\section{Motivación}
+
+La motivación principal de este trabajo nace de una limitación observada durante el desarrollo del sistema de registro de asistencia mencionado, cada aula requiere conexión Wi-Fi y credenciales de acceso a la red del edificio (Centro Universitario de Mérida). Conectar dispositivos nuevos a la red, dispositivos IoT, supone una carga extra y una responsabilidad más para los administradores de la red del centro, los cuales rechazaron conectar este sistema. Por ello, se recurre a LoRa, ya que permitiría comunicar todas las aulas del centro universitario con nodos conectados a la corriente, y un único gateway/dispositivo, que sí debe poseer conexión a internet minimizando el impacto en la red corporativa de la universidad.
+
+Sin embargo, la solución más común sobre LoRa, LoRaWAN, no encaja con las necesidades de comunicación del sistema a desarrollar. Su esquema de acceso al medio ALOHA prioriza la simplicidad en despliegues masivos a costa de una probabilidad de colisión creciente y una latencia mayor a la deseada; además, la comunicación descendente (servidor $\rightarrow$ nodo) queda restringida a ventanas de recepción limitadas~\cite{sornin2015lorawan,farahani2026sdlora}. Para eventos como el fichaje de un usuario con tarjeta NFC, que requiere confirmación inmediata, o para la conmutación remota de un relé, este comportamiento es insuficiente. Trabajos recientes confirman que la introducción de mecanismos de planificación temporal y sincronización sobre LoRa permite reducir drásticamente las colisiones y las retransmisiones~\cite{farahani2026sdlora}, y que arquitecturas alternativas a LoRaWAN sobre microcontroladores de bajo coste son viables en la práctica~\cite{arregui2025gatewayfree}.
+
+Por otra parte, el registro de asistencia de un profesor es un dato sensible y por tanto la seguridad es crucial. En una arquitectura LoRaWAN, estos datos atraviesan varios elementos de infraestructura que con frecuencia operan terceros, como ocurre en las redes públicas. Esto indica que la información es tan segura como cada elemento de la infraestructura de LoRaWAN, es decir, hay una mayor superficie de ataque. El canal de radio es, además, accesible para cualquiera que se encuentre en su alcance y las LPWAN pueden presentar vulnerabilidades según el diseño que posean~\cite{chacko2018security}. La literatura demuestra que los microcontroladores ESP32, gracias a su motor criptográfico con aceleración por hardware, permiten asegurar enlaces LoRa con un coste computacional y económico muy reducido~\cite{iqbal2018aes,babiuch2019esp32}.
+
+A partir de estas tres limitaciones identificadas: necesidad de independencia de la infraestructura Wi-Fi, inadecuación de LoRaWAN para el sistema en desarrollo con necesidad de baja latencia y viabilidad de la seguridad en dispositivos de bajo coste; surge la necesidad de diseñar un protocolo propio de red de área local sobre la capa física de LoRa, denominado \textbf{LoRaLAN}.
+
+\section{Novedad y originalidad}
+
+La principal aportación de este trabajo es la especificación, implementación y validación de una versión inicial de LoRaLAN, un protocolo ligero de nivel de enlace/red sobre la capa física LoRa pensado para redes locales con un único \textit{gateway} y decenas de nodos con un mecanismo de acceso al medio híbrido característico. Frente a las soluciones existentes, la propuesta se distingue por las siguientes características:
+
+\begin{itemize}
+\item \textbf{Acceso al medio híbrido}: multiplexación por división de tiempo (sondeo o \textit{polling} centralizado desde el gateway) para el tráfico rutinario, junto con un modo asíncrono para eventos críticos con necesidad de respuesta inmediata. Este diseño favorece los eventos prioritarios sin renunciar al determinismo del tráfico periódico.
+
+\item \textbf{Sincronización temporal integrada}: el gateway difunde tramas de tipo \textit{Time-sync} con marca de tiempo que corrigen la deriva de los relojes de los nodos, siguiendo la línea de los esquemas de planificación temporal sobre LoRa~\cite{farahani2026sdlora}.
+
+\item \textbf{Seguridad de serie}: cifrado del \textit{payload} (carga útil), con AES-128 en modo CTR, integridad y autenticidad mediante un código MIC con esquema \textit{Encrypt-then-MAC}, protección anti-repetición y un procedimiento de asociación (\textit{join}) con derivación de claves de sesión por nodo a partir de una clave maestra precompartida, aprovechando la aceleración criptográfica hardware del ESP32, similar a LoRaWAN~\cite{iqbal2018aes}.
+\end{itemize}
+
+Hasta donde alcanza la revisión bibliográfica realizada, no se ha encontrado una solución abierta que combine estas características sobre hardware de bajo coste, lo cual destaca lo original de esta propuesta.
+
+\section{Objetivos del Trabajo}
+
+
+Objetivo general:
+
+\begin{itemize}
+    \item 
+Diseñar, implementar y validar LoRaLAN, un protocolo de comunicaciones de área local sobre la capa física LoRa, como alternativa privada e independiente a LoRaWAN en entornos locales y demostrar la viabilidad en el caso real a estudiar, el sistema de control de asistencia y monitoreo de aulas.
+\end{itemize}
+
+Objetivos específicos:
+
+
+\begin{itemize}
+\item Estudiar las tecnologías LPWAN y, en particular, la capa física LoRa y el estándar LoRaWAN, identificando las limitaciones que este último presenta cuando se traslada a un entorno local con requisitos de interactividad.
+
+\item Caracterizar experimentalmente la ocupación de la banda ISM de 863--870~MHz en el entorno de despliegue mediante radio definida por software (SDR), de modo que la elección del canal radioeléctrico de operación quede justificado con medidas reales.
+
+\item Definir una red privada en estrella, gobernada por un único \textit{gateway} propio y sin dependencia de infraestructura ni de servidores de terceros, a la que los nodos se incorporen mediante un procedimiento de asociación.
+
+\item Dotar al protocolo de comunicación bidireccional confirmada, de manera que un nodo pueda notificar un evento y recibir confirmación de recepción; y que el \textit{gateway} pueda dirigir una orden a un nodo concreto en cualquier momento.
+
+\item Diseñar un mecanismo de acceso al medio híbrido, que combine el sondeo por turnos para el tráfico rutinario con la transmisión inmediata de eventos con detección de actividad en el canal, y que respete el ciclo de trabajo que la normativa impone en la banda en la que opera~\cite{etsien3002202}.
+
+\item Integrar la seguridad en el propio protocolo, proporcionando confidencialidad de los datos de aplicación, autenticidad e integridad.
+
+\item Mantener el protocolo ligero, con una cabecera lo más breve posible, una carga útil limitada a 64~bytes y una implementación funcional para dispositivos de bajo coste.
+
+\item Implementar el protocolo como una librería reutilizable para Arduino/ESP32, apoyándose en RadioLib y que la librería soporte distintos transceptores de radio sin necesidad de modificaciones.
+
+\item Verificar la lógica del protocolo, su rendimiento y validar posteriormente su funcionamiento sobre hardware real.
+
+\item Migrar el sistema de control de asistencia de partida para que funcione sobre LoRaLAN garantizando su funcionamiento de extremo a extremo como demostración de la viabilidad del protocolo.
+\end{itemize}
+
+\section{Estructura del documento}
+
+
+El documento se organiza de la siguiente manera:
+
+\begin{itemize}
+    \item \textbf{Capítulo \ref{chap:1}. Introducción.} Se presenta la contextualización, motivación, originalidad y objetivos de este trabajo.
+
+    \item \textbf{Capítulo \ref{chap:2}. Revisión de la literatura.} Se revisan los fundamentos de la modulación LoRa y del protocolo LoRaWAN, junto con sus limitaciones. Se analizan también las alternativas propuestas en la literatura, como los esquemas de planificación temporal y las redes en malla, y se dedica un apartado a la seguridad y al cifrado ligero en comunicaciones LoRa.
+
+    \item \textbf{Capítulo \ref{chap:3}. Metodología y fase de análisis.} Se describe el escenario de despliegue en el Centro Universitario de Mérida y se definen los requisitos funcionales y no funcionales que debe cumplir el sistema de comunicación y la aplicación a migrar.
+
+    \item \textbf{Capítulo \ref{chap:4}. Diseño del protocolo LoRaLAN.} Se presenta el diseño del protocolo propuesto: la arquitectura de red, el formato de la trama, el mecanismo de acceso al medio, el procedimiento de registro de nodos, la confirmación de mensajes y los mecanismos de seguridad.
+
+    \item \textbf{Capítulo \ref{chap:5}. Implementación.} Se expone el desarrollo de la librería LoRaLAN en C++ sobre RadioLib, tanto en los nodos (ESP32) como en el gateway (Raspberry Pi).
+
+    \item \textbf{Capítulo \ref{chap:6}. Validación del protocolo LoRaLAN.} Se presentan los resultados obtenidos tras verificar y validar el protocolo mediante un simulador y se exponen las limitaciones encontradas.
+
+    \item \textbf{Capítulo \ref{chap:7}. Caso de uso: Sistema de Registro de Asistencia y Monitoreo de Aulas.} Se expone la integración del protocolo y la aplicación: el diseño y montaje del nodo en una PCB propia, el servidor desarrollado con FastAPI, la base de datos y la integración de todos los componentes.
+
+    \item \textbf{Capítulo \ref{chap:8}. Conclusiones y trabajo futuro.} Se recogen las conclusiones del trabajo, el grado de cumplimiento de los objetivos y las posibles líneas de mejora y ampliación.
+\end{itemize}
+
+Por último, se incluyen la bibliografía y los anexos con información complementaria.

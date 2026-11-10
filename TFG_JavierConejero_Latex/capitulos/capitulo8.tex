@@ -1,0 +1,48 @@
+\chapter{Conclusiones y trabajo futuro}\label{chap:8}
+
+En este capítulo se recogen las conclusiones a partir de los resultados obtenidos y se proponen las líneas de trabajo futuro.
+
+\section{Conclusiones}
+
+Las conclusiones tras el diseño, desarrollo y evaluación del protocolo LoRaLAN son las siguientes:
+
+\begin{itemize}
+
+\item \textbf{Viabilidad del protocolo}: Se ha diseñado e implementado LoRaLAN como un protocolo de comunicación de área local sobre LoRa, adaptado a redes de sensores y dispositivos con requisitos de bajo consumo y tráfico reducido. Los resultados de simulación muestran tasas estimadas de entrega del 99,5\,\% con un 20\,\% de pérdidas en el canal y superiores al 99,8\,\% con una mayor carga de red, en redes con distinta cantidad de nodos registrados.
+
+\item \textbf{Portabilidad de la implementación}: La separación entre la lógica del protocolo y las operaciones dependientes de la plataforma ha permitido desarrollar una biblioteca común para ESP32, Raspberry Pi y simulador de PC. Esta arquitectura facilita su mantenimiento, reutilización y adaptación a distintos dispositivos sin duplicar la implementación del protocolo.
+
+\item \textbf{Validación y alcance del simulador}: Se ha desarrollado un entorno de simulación reproducible que permite evaluar el comportamiento de la red ante pérdidas, retrasos, duplicaciones, reordenamientos y corrupción de tramas. La batería de casos ha permitido identificar defectos durante el desarrollo y verificar buena parte de los requisitos. No obstante, los resultados no sustituyen a las pruebas radioeléctricas reales, especialmente en lo relativo al alcance, las interferencias y los tiempos de comunicación, que se asumen en cierto modo ya que dependen principalmente del comportamiento de LoRa.
+
+\item \textbf{Viabilidad de la aplicación desarrollada}: La integración de LoRaLAN en un sistema de registro de asistencia mediante NFC y monitorización de aulas ha demostrado su utilidad en un escenario real. El conjunto ha funcionado correctamente de extremo a extremo con un nodo físico y uno simulado, pero no ha sido posible validar el funcionamiento del protocolo en un entorno real con varios nodos en funcionamiento.
+
+\item \textbf{Adecuación a las restricciones radioeléctricas}: Las mediciones mediante SDR y el análisis del tráfico generado han permitido estudiar la ocupación de la banda seleccionada en el Centro Universitario de Mérida y estimar el cumplimiento de las restricciones de ciclo de trabajo. Los resultados analíticos y de simulación indican que la configuración planteada se mantiene dentro del límite del 10\,\% por hora, aunque su confirmación definitiva requiere completar las mediciones de tiempo en el aire sobre el hardware.
+
+\item \textbf{Limitaciones y seguridad}: La evaluación ha desvelado que la implementación no satisface todavía todos los requisitos definidos, especialmente los relacionados con los eventos asíncronos, la confirmación de entrega, la baja de nodos y la seguridad. En particular, se ha identificado una vulnerabilidad de repetición de asociaciones antiguas y se ha constatado el riesgo que supone compartir una misma clave maestra entre todos los dispositivos. Estos aspectos delimitan el alcance actual de LoRaLAN y constituyen prioridades para futuras mejoras.
+
+\item \textbf{Flexibilidad de LoRa como soporte de protocolos propios}: El trabajo demuestra que es posible utilizar LoRa como capa física para desarrollar un protocolo adaptado a las necesidades de una aplicación concreta, definiendo los mecanismos de acceso al medio, direccionamiento, gestión de nodos y seguridad. En este caso, la combinación de sondeo periódico y eventos asíncronos permite atender tanto la monitorización como los fichajes, manteniendo el control de las comunicaciones en la propia aplicación y sin depender de un servidor de red externo.
+
+\end{itemize}
+
+Como conclusión general, se puede afirmar que el trabajo ha alcanzado su objetivo principal, que consistía en diseñar un protocolo de red local sobre LoRa ajustado a un problema concreto y en demostrar su utilidad mediante una aplicación real. Además, LoRaLAN es una propuesta que ofrece algo distinto al resto de protocolos y soluciones actuales sobre LoRa. Ofrece una alternativa descentralizada y privada, donde se da la libertad total al programador de crear su aplicación de IoT, sin necesidad de conexión a internet, sin depender de una infraestructura gestionada por terceros, que ofrece versatilidad a la hora de programar el tipo de tráfico que la red va a gestionar y que es independiente del hardware.
+ 
+En este caso, sobre esta base se construyó un sistema de registro de asistencia por NFC y monitoreo de aulas para los docentes del Centro Universitario de Mérida que funcionó de extremo a extremo sobre hardware real y que muestra una alternativa para prescindir de la red Wi-Fi del edificio a la hora de ofrecer servicios novedosos que simplifican las labores de los docentes y de los conserjes.
+  
+\section{Trabajo futuro}
+
+
+A partir de los resultados obtenidos y de las limitaciones identificadas, se plantean las siguientes líneas de trabajo futuro:
+
+\begin{itemize}
+    \item \textbf{Mejora del acceso al medio}: Incorporar escucha previa en las emisiones periódicas del gateway y adaptar el sondeo para evitar que interfiera con intercambios en curso. Asimismo, podría implementarse un sondeo adaptativo que priorice los nodos con actividad reciente o con órdenes pendientes.
+
+    \item \textbf{Mayor robustez del protocolo}: Admitir varias cargas pendientes en el nodo y garantizar su cancelación al producirse una baja, y mejorar la recuperación tras un reinicio del gateway mediante un mecanismo de aviso que permita la reasociación inmediata.
+
+    \item \textbf{Refuerzo de los mecanismos de seguridad}: Corregir la vulnerabilidad detectada en el proceso de asociación mediante mecanismos que impidan la reutilización de asociaciones y claves de sesión antiguas y estudiar la sustitución de la clave maestra compartida por un esquema de claves independientes por nodo, de forma que el compromiso de un dispositivo no afecte a la seguridad del resto de la red.
+
+    \item \textbf{Optimización del consumo energético}: Incorporar un modo de bajo consumo que permita a los nodos permanecer dormidos y limitar sus periodos de escucha.
+
+    \item \textbf{Validación experimental en hardware}: Realizar una prueba de despliegue con varias placas para caracterizar los tiempos de transmisión e ida y vuelta, la ventana ciega, la eficacia de la escucha previa, el alcance, la calidad de señal y las tasas de entrega y latencia, con ayuda de herramientas como el SDR.
+
+    \item \textbf{Despliegue piloto}: Instalar el sistema en varias aulas durante un periodo lectivo, evaluando su funcionamiento en condiciones reales y determinando las necesidades de cobertura y coordinación entre el gateway y los nodos para un posible despliegue.
+\end{itemize}

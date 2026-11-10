@@ -28,6 +28,10 @@ Raspberry Pi (gateway, ver `gatewayLoRaLAN/`), que le proporciona su propio `Ard
 | `LoRaLANGateway.h/.cpp` | Rol gateway: tabla de nodos, JOIN, POLL, TIME_SYNC, PUSH con ACK diferido y CMD |
 | `LoRaLANNode.h/.cpp` | Rol nodo: JOIN, PUSH con CAD, respuesta al POLL, CMD, TIME_SYNC, LEAVE |
 
+Fuera de `src/`, `skills/loralan/SKILL.md` es una guía para asistentes de IA que ayuden a
+integrar la biblioteca, y `../sim_LoRaLAN` es el simulador de PC con el que se prueba la
+lógica del protocolo sin hardware.
+
 ---
 
 ## Cómo funciona

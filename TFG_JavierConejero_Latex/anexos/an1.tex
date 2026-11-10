@@ -1,0 +1,200 @@
+\chapter{Catálogo de pruebas funcionales evaluadas}\label{anexo_A}
+En este anexo se recoge en la tabla \ref{tab:catalogo} la descripción detallada de las pruebas funcionales diseñadas para verificar el protocolo.
+
+{\small
+\begin{longtable}{|c|p{6.4cm}|p{6.8cm}|}
+\caption{\label{tab:catalogo} Catálogo de pruebas de formato y de protocolo.}\\
+\hline
+\textbf{Id} & \textbf{Situación} & \textbf{Resultado esperado} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Id} & \textbf{Situación} & \textbf{Resultado esperado} \\
+\hline
+\endhead
+\multicolumn{3}{|l|}{\textbf{Formato de trama}} \\
+\hline
+F1 & Construir una trama de cada tipo y volver a leerla & Se obtiene lo mismo que se construyó \\
+\hline
+F2 & Longitudes de 10, 11, 75 y 76~bytes & Solo se aceptan de 11 a 75~bytes \\
+\hline
+F3 & Secuencia de 16~bits hasta 0xFFFF y paso a 0 & La detección de repeticiones sigue funcionando \\
+\hline
+F4 & Alterar cada byte de una trama, de uno en uno & El MIC deja de coincidir en todos los casos \\
+\hline
+F5 & Versión, tipo, prioridad o indicadores inválidos & Trama rechazada, sin caída \\
+\hline
+F6 & Carga de 0, 1, 64 y 65~bytes & Se acepta hasta 64; se rechaza 65 \\
+\hline
+\multicolumn{3}{|l|}{\textbf{JOIN}} \\
+\hline
+J1 & Asociación con el canal limpio & Asociado; un aviso en cada extremo \\
+\hline
+J2 & Se pierde el JOIN\_REQUEST & Lo repite más tarde con otro DevNonce \\
+\hline
+J3 & Se pierde el JOIN\_ACCEPT & Repite; el gateway reutiliza entrada y dirección; ambos acaban con la misma clave \\
+\hline
+J4 & Canal ocupado al solicitar la asociación & No transmite; reintenta después \\
+\hline
+J5 & Varios nodos se asocian a la vez & Todos asociados, cada uno con su dirección \\
+\hline
+J6 & El nodo se reinicia con la sesión viva & Sesión nueva; la secuencia se reinicia \\
+\hline
+J7 & Clave maestra incorrecta & Nunca asociado; sin estado en el gateway \\
+\hline
+J8 & Otro identificador de red & Se ignora \\
+\hline
+J9 & Nodo número 33 con la tabla llena & Rechazado; los otros 32 no se ven afectados \\
+\hline
+J10 & Dirección ocupada o sin preferencia & Recibe otra libre del rango dinámico \\
+\hline
+J12 & Repetición del último JOIN & Rechazada; la sesión sigue intacta \\
+\hline
+J13$^{\dagger}$ & Repetición de un JOIN antiguo & Rechazada \\
+\hline
+J15 & Encolar un evento antes de asociarse & \texttt{queuePushEvent} devuelve \texttt{false} \\
+\hline
+\multicolumn{3}{|l|}{\textbf{LEAVE}} \\
+\hline
+L1 & Baja con el canal limpio & ACK; clave borrada; un aviso; no se reasocia solo \\
+\hline
+L2 & Se pierde el ACK de la baja & Repite; el gateway avisa una vez; acaba de baja \\
+\hline
+L3 & Se pierden todos los LEAVE & Baja local; el gateway acaba viéndolo inactivo \\
+\hline
+L4$^{\dagger}$ & Baja mientras el nodo espera la confirmación de otro envío & \texttt{leave()} devuelve \texttt{false} y el nodo sigue asociado \\
+\hline
+L5$^{\dagger}$ & Baja con un evento pendiente de enviar & El evento se descarta y se avisa a la aplicación con \texttt{delivered=false} \\
+\hline
+L6 & POLL o CMD durante la baja & Ni responde ni ejecuta \\
+\hline
+L7 & Reasociación tras la baja & Sesión nueva, misma dirección \\
+\hline
+L9 & Baja de un nodo entre varios & El sondeo lo salta; los demás no se ven afectados \\
+\hline
+L10$^{\dagger}$ & Repetición de un LEAVE & Rechazada \\
+\hline
+\multicolumn{3}{|l|}{\textbf{POLL}} \\
+\hline
+P1 & POLL sin datos & Respuesta vacía, una vez, sin ACK \\
+\hline
+P2 & Respuesta generada bajo demanda & Una emisión, sin ACK \\
+\hline
+P3 & Carga con ACK & Se confirma y se borra del nodo \\
+\hline
+P4 & Carga con ACK; se pierde el ACK & Se conserva y se repite después \\
+\hline
+P5 & Carga sin ACK & Una emisión y se borra \\
+\hline
+P6$^{\dagger}$ & Preparar una respuesta de sondeo cuando ya hay otra pendiente & \texttt{queuePollPayload} devuelve \texttt{false} y conserva la anterior \\
+\hline
+P7 & POLL dirigido a otro nodo & No responde \\
+\hline
+P8 & Se pierde el POLL & Aumentan los sondeos sin respuesta; llega el siguiente turno \\
+\hline
+P9 & Se pierde la POLL\_RESPONSE & Sin ACK, dato perdido; con ACK, se repite \\
+\hline
+P10 & Varios nodos & Turnos justos; cada nodo, cada $N$ intervalos \\
+\hline
+P11 & Un nodo deja de contestar y vuelve & Un aviso de inactivo; se sigue sondeando; se reactiva \\
+\hline
+P14$^{\dagger}$ & Llega un POLL mientras el nodo espera un ACK & Responder al POLL no impide recibir ese ACK \\
+\hline
+\multicolumn{3}{|l|}{\textbf{PUSH}} \\
+\hline
+U1 & Evento en reposo con el canal libre & Una escucha y una emisión; llega en un tiempo en el aire \\
+\hline
+U2 & Evento sin ACK & Una emisión, sin ACK \\
+\hline
+U3 & Canal ocupado & Espera creciente, sin solape \\
+\hline
+U4$^{\dagger}$ & Canal ocupado de forma permanente & Tras un número máximo de intentos, el nodo desiste y avisa a la aplicación \\
+\hline
+U5 & Se pierde la primera emisión & Reintento; una sola entrega \\
+\hline
+U6 & Se pierde el ACK & Repite; una sola entrega \\
+\hline
+U7 & Se pierde todo, sin rescate & \texttt{delivered=false} \\
+\hline
+U8 & Se pierde todo, con rescate & Sale en el siguiente POLL \\
+\hline
+U9$^{\dagger}$ & Rescate con otra carga ya encolada & No se pierde ninguna \\
+\hline
+U10 & Dos eventos seguidos & El segundo devuelve \texttt{false} si el primero no ha salido \\
+\hline
+U11 & Evento mientras otro espera ACK & Espera y después sale \\
+\hline
+U12 & Evento justo cuando empieza un POLL & Si colisionan, un reintento y entrega \\
+\hline
+U13 & Evento mientras el nodo responde a un POLL & Espera a que el canal quede libre, sin colisión \\
+\hline
+U14 & Evento con una carga con ACK en curso & Espera, pues comparten el envío fiable \\
+\hline
+U15$^{\dagger}$ & Hay que repetir un evento y el canal está ocupado & El nodo escucha el canal antes de repetir y espera a que quede libre \\
+\hline
+U16$^{\dagger}$ & Varios nodos colisionan ($W > 0$) & Dejan de coincidir y todos entregan \\
+\hline
+U17 & Reinicio del gateway con un evento en curso & \texttt{delivered=false}; se reasocia por silencio \\
+\hline
+U19 & Evento de 0, 1, 64 y 65~bytes & Se acepta hasta 64; con 65, \texttt{false} \\
+\hline
+U20$^{\dagger}$ & Se pierden 63 y luego 64~tramas seguidas & Recupera la comunicación en ambos casos \\
+\hline
+U22 & Evento perdido y POLL con secuencia mayor antes del reintento & Si el nodo recibe la confirmación, la aplicación recibió el evento \\
+\hline
+\multicolumn{3}{|l|}{\textbf{ACK diferido}} \\
+\hline
+D1 & La aplicación responde rápido & El código llega al nodo dentro del ACK \\
+\hline
+D2 & La aplicación responde en más de 1200~ms & El nodo repite; la aplicación no recibe duplicado \\
+\hline
+D3 & Se pierde el ACK con la respuesta & La repetición recibe la misma respuesta guardada \\
+\hline
+D4 & La aplicación nunca responde & \texttt{delivered=false} \\
+\hline
+D6$^{\dagger}$ & POLL durante la espera & El ACK no se pierde \\
+\hline
+\multicolumn{3}{|l|}{\textbf{CMD}} \\
+\hline
+C1 & Orden con el canal limpio & Se descifra y se ejecuta una vez; los bytes en el aire no contienen el texto claro \\
+\hline
+C2 & Se pierde la orden & Reintento; se ejecuta una vez \\
+\hline
+C3$^{\dagger}$ & Se pierde el ACK del nodo & Se ejecuta una sola vez \\
+\hline
+C4 & Orden a un nodo no asociado & \texttt{sendCommand} devuelve \texttt{false} \\
+\hline
+C5 & Orden con otra en espera & Devuelve \texttt{false}; la aplicación reintenta \\
+\hline
+C7$^{\dagger}$ & Repetición de una orden capturada & Rechazada \\
+\hline
+\multicolumn{3}{|l|}{\textbf{TIME\_SYNC}} \\
+\hline
+T1 & Llega un TIME\_SYNC & Cambia el desfase del reloj del nodo \\
+\hline
+T2 & Solo llegan TIME\_SYNC & No cuentan como señal de vida; se detecta el silencio \\
+\hline
+T-PER & Transcurre el tiempo & Se emite solo, con el periodo configurado \\
+\hline
+\multicolumn{3}{|l|}{\textbf{Silencio y reinicios}} \\
+\hline
+S1 & El gateway deja de emitir & El nodo repite el JOIN \\
+\hline
+S2 & Funcionamiento normal prolongado & Ninguna reasociación falsa \\
+\hline
+S4 & Reinicio del gateway con tres nodos & Los tres se reasocian con su dirección \\
+\hline
+\multicolumn{3}{|l|}{\textbf{Seguridad y entradas malformadas}} \\
+\hline
+A1 & Repetir un PUSH capturado & Sin doble entrega; se reenvía el ACK \\
+\hline
+A2 & Alterar la carga o la cabecera & Rechazada \\
+\hline
+A3$^{\dagger}$ & Devolver al nodo su propio ACK & Rechazado \\
+\hline
+A4$^{\dagger}$ & Agotar los 65\,536 valores del contador en una sesión & No se reutiliza el flujo de cifrado \\
+\hline
+A5 & Tramas truncadas, longitudes extremas y tipos desconocidos & Sin caída ni cambio de estado \\
+\hline
+\end{longtable}
+}

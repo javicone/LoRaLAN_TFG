@@ -1,0 +1,28 @@
+% ============================================================
+% Anexo: Cálculo del Time on Air (ToA) de una trama LoRa
+% Requiere en el preámbulo: \usepackage{amsmath}
+% ============================================================
+\chapter{Cálculo del tiempo en el aire (ToA)}
+\label{anexo:toa}
+
+El tiempo en el aire (\textit{Time on Air}, ToA) de una trama LoRa se calcula según la documentación de Semtech para el SX1276 \cite{semtech_sx1276}:
+
+\begin{align}
+  T_{\text{sym}} &= \frac{2^{SF}}{BW} \label{eq:tsym}\\[4pt]
+  n_{\text{payload}} &= 8 + \max\!\left( \left\lceil \frac{8PL - 4SF + 28 + 16\,CRC - 20H}{4\,(SF - 2DE)} \right\rceil (CR + 4),\; 0 \right) \label{eq:npayload}\\[4pt]
+  ToA &= \left(n_{\text{preámbulo}} + 4{,}25 + n_{\text{payload}}\right) T_{\text{sym}} \label{eq:toa}
+\end{align}
+
+donde $SF$ es el factor de ensanchamiento, $BW$ el ancho de banda en Hz, $PL$ la longitud de la carga útil en bytes, $CR \in \{1,\dots,4\}$ la tasa de codificación ($4/5$ a $4/8$), $H=1$ si la cabecera es implícita ($0$ si es explícita), $CRC=1$ si el CRC está activado y $DE=1$ si se activa la optimización para baja tasa de datos (obligatoria cuando $T_{\text{sym}} > 16$\,ms).
+
+\paragraph{Ejemplo.} Para $PL=20$\,bytes, $SF=7$, $BW=125$\,kHz, $CR=4/5$, 8 símbolos de preámbulo, cabecera explícita y CRC activado:
+\[
+  T_{\text{sym}} = 1{,}024\ \text{ms}, \quad
+  n_{\text{payload}} = 8 + \lceil 176/28 \rceil \cdot 5 = 43, \quad
+  ToA = (8 + 4{,}25 + 43)\cdot 1{,}024 \approx 56{,}6\ \text{ms}.
+\]
+
+% @manual{semtech_sx1276,
+%   title        = {SX1276/77/78/79 -- 137 MHz to 1020 MHz Low Power Long Range Transceiver. Datasheet},
+%   organization = {Semtech Corporation}, note = {Rev. 7}, year = {2020}
+% }

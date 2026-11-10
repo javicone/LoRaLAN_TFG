@@ -1,0 +1,8 @@
+\renewcommand{\keywords}{{\itshape \bfseries Palabras clave - }}
+\chapter*{Resumen} 
+Las tecnologías LPWAN, y en particular LoRa, permiten establecer comunicaciones inalámbricas de largo alcance con un consumo reducido, lo que las convierte en una alternativa de interés para aplicaciones IoT. Sin embargo, LoRaWAN, el protocolo más extendido sobre LoRa, está orientado a despliegues de gran escala y presenta limitaciones para aplicaciones locales que requieren comunicaciones bidireccionales y baja latencia. Este Trabajo de Fin de Grado presenta LoRaLAN, un protocolo de comunicación de área local diseñado directamente sobre la capa física LoRa, y su aplicación a un sistema de registro de asistencia docente mediante tarjetas NFC y monitorización de aulas.
+
+LoRaLAN emplea una topología en estrella y combina un mecanismo de sondeo periódico para el tráfico rutinario con la transmisión asíncrona de eventos urgentes mediante detección de actividad del canal (CAD). También incorpora mecanismos de direccionamiento, control de acceso al medio y protección de los mensajes mediante cifrado y autenticación. Su implementación se ha desarrollado como una biblioteca independiente de la plataforma, ejecutable tanto en plataformas ESP32, Raspberry Pi como en un simulador de PC. La evaluación combina la caracterización del entorno radioeléctrico mediante radio definida por software (SDR), experimentos sobre un canal simulado y validación funcional sobre el hardware.
+
+
+\keywords{LoRa, LoRaLAN, LPWAN, IoT, Protocolo MAC, Sondeo, CAD, AES, CMAC, ESP32, Simulación, NFC, Control de asistencia.}

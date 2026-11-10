@@ -1,0 +1,63 @@
+\chapter{Presupuesto individual de Nodo y Gateway LoRaLAN para aplicación de registro de asistencia y monitoreo de aulas.}\label{anexo_B}
+
+En este anexo se detalla el coste económico del prototipo desarrollado. Es decir, el coste aproximado del hardware que se ha empleado.
+
+\section{Presupuesto de Nodo}
+
+La Tabla~\ref{tab:presupuesto-nodo} recoge el coste de cada componente de un nodo de aula.
+
+\begin{table}[H]
+    \centering
+    \caption{Presupuesto de un nodo de aula.}
+    \label{tab:presupuesto-nodo}
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabularx}{0.6\textwidth}{X r}
+        \toprule
+        \textbf{Componente} & \textbf{Precio (\euro)} \\
+        \midrule
+        Microcontrolador ESP32                  & 8,00  \\
+        Transceptor LoRa SX1276                 & 12,00 \\
+        Lector NFC (PN532)                      & 9,00  \\
+        Sensor t/h/p (BME280)      & 6,00  \\
+        Sensor de lumin. (BH1750)          & 3,00  \\
+        Sensor de presencia (LD2410)            & 2,50  \\
+        Pantalla OLED de 0,96 pulgadas          & 3,00  \\
+        3 LEDs (rojo, verde y amarillo)         & 0,30  \\
+        3 resistencias de 220~$\Omega$          & 0,15  \\
+        Módulo de relés                         & 4,00  \\
+        Fuente de alimentación                  & 4,00  \\
+        PCB
+        Conectores y cableado                   & 3,00  \\
+        \midrule
+        \textbf{Total nodo} & \textbf{59,95} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+ 
+
+\section{Presupuesto de Gateway}
+
+La Tabla~\ref{tab:presupuesto-gateway} recoge los componentes del gateway, que además aloja el servidor y la base de datos.
+
+ 
+\begin{table}[H]
+    \centering
+    \caption{Presupuesto del gateway.}
+    \label{tab:presupuesto-gateway}
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabularx}{0.6\textwidth}{X r}
+        \toprule
+        \textbf{Componente} & \textbf{Precio (\euro)} \\
+        \midrule
+        Raspberry Pi 4 (4~GB)            & 65,00 \\
+        Fuente de alimentación           & 10,00 \\
+        Tarjeta microSD de 32~GB         & 8,00  \\
+        Transceptor LoRa SX1276          & 12,00 \\
+        Cableado y adaptadores           & 3,00  \\
+        \midrule
+        \textbf{Total gateway} & \textbf{98,00} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+ 

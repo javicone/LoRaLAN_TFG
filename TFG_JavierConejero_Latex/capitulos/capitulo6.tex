@@ -1,0 +1,435 @@
+\chapter{Validación del protocolo LoRaLAN}\label{chap:6}
+
+Tras diseñar e implementar LoRaLAN, es necesario validar su funcionamiento más allá de comprobar que el caso de uso funcione sobre hardware. Para ello, se desarrollan un simulador específico y un plan de pruebas a partir de los requisitos del protocolo. El capítulo describe ambos elementos, presenta los resultados disponibles y analiza las limitaciones de la validación.
+
+Dado que la simulación permite reproducir de forma controlada situaciones difíciles de provocar sobre hardware real, constituye el principal método de verificación del protocolo.  
+
+
+\section{Diseño del simulador}\label{sec:disenosim}
+
+El simulador que se describe en este apartado, denominado \texttt{sim\_LoRaLAN}, se ha diseñado de forma que cumpla cuatro condiciones:
+
+\begin{itemize}
+\item \textbf{Aislamiento}: cada caso se ejecuta en un entorno nuevo y no depende de lo que dejaron los casos anteriores.
+\item \textbf{Inyección de fallos}: cada caso provoca un fallo concreto, sin depender de que la pérdida aleatoria lo produzca.
+\item \textbf{Observabilidad}: las comprobaciones se hacen sobre una traza consultable, no sobre la salida por consola.
+\item \textbf{Determinismo}: con un reloj virtual y una semilla, la misma semilla siempre da la misma traza.
+\end{itemize}
+
+La librería se compila directamente a partir de sus ficheros fuente, sin modificarlos. Sin embargo, LoRaLAN depende de tres bibliotecas externas pensadas para ejecutarse en un microcontrolador, no en un ordenador. Para resolverlo, se sustituye cada una por una versión simplificada que ofrece las mismas funciones con los mismos nombres, de modo que la librería las utiliza sin notar la diferencia. Las bibliotecas que se sustituyen son:
+
+\begin{itemize}
+\item \textbf{Arduino}: Proporciona el reloj, los números aleatorios y la salida por consola. En el simulador, \texttt{millis()} es un reloj virtual que solo avanza cuando el simulador lo indica, así que minutos de protocolo se ejecutan en una fracción de segundo. \texttt{random()} usa un generador propio, de modo que una misma semilla da los mismos valores en cualquier ordenador.
+
+\item \textbf{RadioLib}: Controla el chip LoRa SX1276. Se sustituye por una radio ficticia conectada al canal simulado que devuelve los mismos códigos de estado que el chip real, de los que depende la librería.
+
+\item \textbf{mbedTLS}: Aporta el cifrado AES y la autenticación CMAC. Se sustituye por funciones simples que dan un resultado distinto según la clave. No ofrecen seguridad real y solo sirven para comprobar que cada trama usa la clave correcta.
+\end{itemize}
+
+Para comprobar los casos de prueba, el simulador necesita saber por qué se rechaza cada paquete. Sin embargo, la librería no lo indica. Cuando se recibe un paquete, solo se informa si se acepta o rechaza.
+
+Por eso, el simulador deduce el motivo por su cuenta. En la mayoría de los casos (formato incorrecto, otra red, otro destinatario o clave equivocada) lo consigue con funciones que la propia librería ofrece. La única excepción es el fallo de autenticación: la librería no lo comunica por ninguna vía salvo un mensaje de aviso que escribe en la consola. Como el simulador usa su propia versión de la consola, puede leer ese mensaje y reconocer el fallo.
+
+El simulador está escrito en C++ y se compila con CMake. Su arquitectura separa la ejecución de los casos, la simulación del medio y la evaluación de los resultados. El núcleo crea el gateway y los nodos, gestiona el avance del tiempo y modela el canal. Una traza registra los acontecimientos y permite comprobar las propiedades de cada caso y calcular su veredicto. Los casos de prueba definen las situaciones que se provocan y las condiciones que deben cumplirse.
+
+Se contempla que el tiempo avance en pasos fijos de 1~ms. En cada paso, el gateway y los nodos ejecutan \texttt{process()}. Después, el canal entrega los paquetes que han terminado, se anotan los cambios de estado y avanza el reloj. Se ha elegido un paso fijo porque la librería consulta \texttt{millis()} en cada llamada a \texttt{process()}, igual que en el bucle de una placa.
+
+Las cifras de rendimiento dependen de cómo se simule el canal, por lo que se declaran sus propiedades en la Tabla~\ref{tab:modelo-canal}. El tiempo en el aire se calcula según la longitud, con la misma fórmula que emplea el gateway de la Raspberry Pi (ecuación~\ref{eq:toa}).
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:modelo-canal} Hipótesis realizadas para modelar el canal.}
+\begin{tabular}{|p{2.8cm}|p{11.3cm}|}
+\hline
+\textbf{Aspecto} & \textbf{Modelo} \\
+\hline
+Tiempo en el aire & Fórmula de Semtech según la longitud, redondeada al milisegundo superior. Puede sustituirse por un valor medido. \\
+\hline
+Escucha del canal & Instantánea. Una trama no se detecta hasta $W$~ms después de comenzar (ventana ciega) y, a partir de ahí, se detecta durante toda su duración. Salvo que un caso indique otra cosa, $W = 0$. \\
+\hline
+Pérdida & Independiente por receptor y por enlace, sin ráfagas. Una trama perdida ocupa el aire igual que las demás. \\
+\hline
+Colisión & Cualquier solapamiento entre radios distintas destruye ambas tramas para todos los receptores. \\
+\hline
+Semidúplex & El emisor no ejecuta \texttt{process()} hasta terminar su emisión. \\
+\hline
+Reloj & Único y sin deriva. \\
+\hline
+Radio & La emisión y la escucha nunca devuelven error. La recepción invoca directamente \texttt{handleReceived()}. \\
+\hline
+\end{tabular}
+\end{table}
+
+La ventana ciega, representada por $W$, es el intervalo desde el inicio de una transmisión hasta que los demás dispositivos pueden detectarla. Su valor permite estudiar situaciones en las que dos nodos comienzan a transmitir sin detectarse mutuamente. Por ello, los resultados que dependen de este parámetro se interpretan como un análisis de sensibilidad.
+
+La aleatoriedad se controla mediante una semilla que determina las esperas del protocolo, las pérdidas y los instantes de llegada de los mensajes PUSH. Las pérdidas utilizan un generador independiente del empleado por la librería, evitando que modificar su probabilidad altere también las esperas del protocolo. Así, una misma configuración puede reproducirse y compararse bajo distintas condiciones.
+
+Cada caso declara los fallos que provoca mediante estímulos como el descarte selectivo de tramas, identificado por tipo, sentido y número de aparición, la ocupación del canal, el corte de enlace o la presencia de un atacante.
+
+La traza registra el instante, el dispositivo, el tipo de trama, su secuencia y, cuando procede, el motivo de descarte. Las propiedades se comprueban mediante consultas sobre estos registros, que también pueden exportarse a CSV para su análisis.
+
+Finalmente, los veredictos se asignan individualmente a cada propiedad, en lugar de agruparse por caso, ya que una misma ejecución puede satisfacer unos requisitos e incumplir otros. Se distinguen tres resultados: Superado, Fallido y No concluyente.
+
+\section{Plan de pruebas}\label{sec:plan-pruebas}
+
+La validación combina dos tipos de pruebas. Por un lado, las pruebas funcionales verifican que el protocolo funciona tal y como se ha descrito en la fase de diseño. Por otro lado, se realizan pruebas experimentales que miden el comportamiento de la red ante ciertas situaciones.
+
+Ambos tipos se complementan, ya que un caso funcional demuestra que un mecanismo actúa o falla en una situación, mientras que un experimento indica con qué frecuencia se da esa situación y qué coste tiene. Así, el caso U5 comprueba que un evento perdido se repite y se entrega una sola vez, y EXP1 mide qué parte de los eventos llega cuando las pérdidas son aleatorias.
+
+\subsection{Pruebas funcionales}\label{sec:plan-funcional}
+
+Cada prueba funcional recorre una misma cadena: requisito, propiedad, resultado esperado, estímulo, ejecución, veredicto y resolución. El resultado esperado se obtiene del requisito previamente definido, ya que, si se escribiera después, se daría por bueno lo que el código ya hace. 
+
+Por ello, si un caso falla no se modifica lo esperado para que se supere, sino que el fallo se registra y, después, se decide si se corrige el código, si se revisa el requisito de forma justificada o si se documenta la limitación. Dado que cada caso provoca un fallo concreto, una sola ejecución basta para obtener su veredicto, por lo que la batería se ejecuta con una semilla fija y se repite con otras 30 únicamente para comprobar que los veredictos no dependen del azar.
+
+Los identificadores de estas pruebas siguen la convención que se muestra en la Tabla~\ref{tab:nomenclatura}, en la que la letra indica la parte del protocolo que se prueba. Las 76~pruebas de protocolo se distribuyen entre las familias J, L, P, U, D, C, T, S y A. Los números no expresan importancia y presentan huecos porque el catálogo de partida contenía demasiadas pruebas funcionales; se han seleccionado 87 según su prioridad y el plazo disponible.
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:nomenclatura} Identificadores de las pruebas.}
+\begin{tabular}{|c|p{2.9cm}|p{7.0cm}|c|}
+\hline
+\textbf{Prefijo} & \textbf{Familia} & \textbf{Qué se comprueba} & \textbf{Casos} \\
+\hline
+SIM & Simulador & El propio simulador & 5 \\
+\hline
+F & Formato & Construcción y lectura de paquetes & 6 \\
+\hline
+J & JOIN & Incorporación a la red & 13 \\
+\hline
+L & LEAVE & Baja de la red & 9 \\
+\hline
+P & POLL & Ventana de sondeo & 12 \\
+\hline
+U & PUSH (\textit{o uplink}) & Eventos que el nodo emite por iniciativa propia & 20 \\
+\hline
+D & ACK diferido & Respuesta de la aplicación dentro de la confirmación & 5 \\
+\hline
+C & CMD & Órdenes del gateway a un nodo & 6 \\
+\hline
+T & TIME\_SYNC & Difusión de la hora & 3 \\
+\hline
+S & Silencio & Reacción a la ausencia o al reinicio del gateway & 3 \\
+\hline
+A & Ataque & Tramas falsas, alteradas, repetidas o malformadas & 5 \\
+\hline
+\end{tabular}
+\end{table}
+
+En el Anexo \ref{anexo_A} se relacionan las pruebas de formato y las 76~pruebas de protocolo. Salvo que la situación indique otra cosa, el escenario está formado por un nodo asociado y un canal limpio, sin sondeo automático y con una ventana ciega nula. El símbolo $^{\dagger}$ señala los casos en los que, antes de ejecutarlos, se preveía que el código no cumpliera lo esperado.
+
+\subsection{Pruebas experimentales}\label{sec:experimentos}
+
+Los casos anteriores comprueban si el protocolo reacciona correctamente ante una situación concreta, pero no indican cómo se comporta la red en funcionamiento continuo. Por ello, los experimentos no emiten un veredicto, sino que miden cómo cambia el comportamiento de la red al variar ciertos factores.
+
+Salvo que se indique otra cosa, se emplea la configuración del despliegue: SF7, sondeo cada 5~s, sincronización cada 30~s y respuestas al sondeo de 10~bytes. Los fichajes son eventos de 6~bytes con confirmación inmediata y, cuando se simula tráfico continuo, llegan a la red según un proceso de Poisson, es decir, en instantes aleatorios e independientes entre sí. Cada experimento persigue un objetivo concreto:
+
+\begin{itemize}
+    \item \textbf{VAL}: Se ejecuta para comprobar la validez del simulador ante un resultado teórico conocido. Un nodo emite un evento cada 6~s y se aplican distintos niveles de pérdida (0, 10, 20, 35 y 50\,\%) únicamente en la subida.
+
+    \item \textbf{EXP1}: Se estudia el efecto de las pérdidas en ambos sentidos. Se analiza tanto la entrega y latencia de eventos aislados como la detección de inactividad mediante cuatro nodos que responden al sondeo.
+
+    \item \textbf{EXP4}: Se evalúa la contención entre eventos sin sondeo. La ventana ciega $W$ permite estudiar la sensibilidad de las colisiones a este parámetro, cuyo valor real no se ha medido, por lo que los resultados no predicen directamente el comportamiento en un despliegue.
+
+    \item \textbf{EXP5}: Se repite el escenario de EXP4 con sondeo para aislar el efecto del POLL. También se estudia la influencia de su intervalo, las pérdidas de comunicación y el número de nodos.
+    
+\end{itemize}
+
+Cada configuración se repite con 30~semillas, salvo los barridos por ventana de sondeo y con 254~nodos, que emplean entre 3 y 10 porque son más lentos o tienen poca componente aleatoria. Estas repeticiones son necesarias porque el resultado depende del azar: permiten observar sucesos poco frecuentes, que podrían no aparecer en una sola ejecución, y estimar la incertidumbre de cada cifra comparando las réplicas entre sí.
+
+Del catálogo inicial de experimentos propuestos, se han mantenido los experimentos más relevantes, lo que explica los huecos en la numeración.
+
+
+\subsection{Trazabilidad de los requisitos}\label{sec:trazabilidad}
+
+En la Tabla~\ref{tab:trazabilidad} se relaciona cada requisito con las pruebas que lo verifican. Algunos requisitos no pueden comprobarse en un simulador, por lo que se indica también el método externo correspondiente.
+
+{\small
+\begin{longtable}{|c|p{4.4cm}|p{8.2cm}|}
+\caption{\label{tab:trazabilidad} Correspondencia entre requisitos y pruebas.}\\
+\hline
+\textbf{Req.} & \textbf{Enunciado abreviado} & \textbf{Verificación prevista} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Req.} & \textbf{Enunciado abreviado} & \textbf{Verificación prevista} \\
+\hline
+\endhead
+PRO-1 & Comunicación entre nodos y gateway & J5, P10 \\
+\hline
+PRO-2 & Telemetría e inactivos & P1--P3, P5, P7, P8, P11; EXP1, EXP3 \\
+\hline
+PRO-3 & Eventos asíncronos & J4, U1--U3, U10--U16, D1--D4, D6; EXP4, EXP5; escucha real en hardware \\
+\hline
+PRO-4 & Comunicación descendente & C1, C3--C5 \\
+\hline
+PRO-5 & Confirmación de entrega & L5, P4, P6, P9, P14, U4--U9, U17, U20, U22, C2, C3; VAL, EXP1, EXP7 \\
+\hline
+PRO-6 & Incorporación y salida & J1--J3, J6--J8, J10, J15, L1--L4, L6, L7, L9; vectores publicados \\
+\hline
+PRO-7 & Sincronización temporal & T1, T2, T-PER \\
+\hline
+PRO-8 & Seguridad & F1, F3--F5, J12, J13, L10, C1, C7, A1--A5; vectores publicados y captura en hardware. Sin prueba válida de la solidez del cifrado en el simulador \\
+\hline
+PRO-9 & Recuperación ante la pérdida del gateway & T2, U17, S1, S2, S4; EXP3, EXP7 \\
+\hline
+RNF-1 & Eficiencia & U1; EXP1, EXP5; medida en hardware \\
+\hline
+RNF-2 & Cumplimiento normativo & Ciclo de trabajo (apartado~\ref{sec:dutycycle}); EXP3, EXP5; tiempo en el aire medido en hardware \\
+\hline
+RNF-3 & Recursos y capacidad & F2, F6, J9, U19; búsqueda de memoria dinámica en los fuentes; lista de componentes \\
+\hline
+RNF-4 & Portabilidad e integración & Compilación sin cambios en ESP32, Raspberry Pi y PC; ejemplo mínimo de nodo y de gateway \\
+\hline
+RNF-5 & Verificabilidad & SIM1--SIM5, VAL \\
+\hline
+\end{longtable}
+}
+
+
+\section{Resultados de rendimiento y limitaciones}\label{sec:resultados}
+% Sustituye al apartado «Resultados de la batería» del capítulo 6.
+% Cifras: sim_LoRaLAN, commit 1902369, semilla 42 (results/casos.csv) y semillas 1 a 30.
+
+\subsection{Resultados de la batería}\label{sec:estado-ejecucion}
+
+La batería se ejecutó en el simulador sobre la versión final de la librería y con la semilla fija con la que se obtienen todos los veredictos de este apartado. De los 87~casos, 78 se superan por completo y 9 presentan alguna propiedad Fallida. En total, 141~propiedades se superan, 11 fallan y ninguna queda No concluyente, de modo que todas llegaron a ejercitar el estímulo que declaran. La Tabla~\ref{tab:bateria} resume estos resultados por familia.
+
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:bateria} Resultado de la batería por familia.}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Familia} & \textbf{Casos} & \textbf{Con fallos} & \textbf{Prop. superadas} & \textbf{Prop. fallidas} \\
+\hline
+Simulador (SIM) & 5 & 0 & 14 & 0 \\
+\hline
+Formato (F) & 6 & 0 & 14 & 0 \\
+\hline
+JOIN (J) & 13 & 1 & 22 & 2 \\
+\hline
+LEAVE (L) & 9 & 2 & 14 & 2 \\
+\hline
+POLL (P) & 12 & 1 & 15 & 1 \\
+\hline
+PUSH (U) & 20 & 3 & 31 & 3 \\
+\hline
+ACK diferido (D) & 5 & 1 & 5 & 1 \\
+\hline
+CMD (C) & 6 & 0 & 11 & 0 \\
+\hline
+TIME\_SYNC (T) & 3 & 0 & 4 & 0 \\
+\hline
+Silencio (S) & 3 & 0 & 4 & 0 \\
+\hline
+Seguridad (A) & 5 & 1 & 7 & 2 \\
+\hline
+\textbf{Total} & \textbf{87} & \textbf{9} & \textbf{141} & \textbf{11} \\
+\hline
+\end{tabular}
+\end{table}
+
+Para comprobar el determinismo del simulador, la batería se ejecutó dos veces con la misma semilla, obteniéndose ficheros de resultados y trazas idénticos byte a byte. Asimismo, se repitió con las semillas 1 a 30 para verificar que los veredictos no dependen del azar, y el único que cambió fue el de U16, que se supera en 15 de las 30~ejecuciones, lo que resulta coherente con que su resultado dependa de las esperas aleatorias de los nodos que colisionan.
+
+En la Tabla~\ref{tab:fallidas} se relacionan los nueve casos que mantienen alguna propiedad Fallida, junto con el tratamiento que se ha decidido para cada uno. Ninguno de ellos se ha corregido, de modo que todos se mantienen como limitaciones declaradas de la versión final, bien porque su corrección exigiría modificar el protocolo, bien porque sus efectos son poco frecuentes o recuperables o bien porque dependen de magnitudes físicas que solo pueden medirse en hardware.
+
+La primera ejecución de la batería, sobre la versión anterior a la validación, identificó 17~casos con alguna propiedad Fallida, de los que se corrigieron ocho tras analizar sus causas. En concreto, U22, U20, C3 y C7 se resolvieron con el control de secuencia implementado, U4 limitando a ocho las escuchas de un evento con el canal ocupado y J5 con una espera aleatoria en los reintentos y en la asociación, mientras que L6 se corrigió impidiendo que el nodo confirme órdenes durante la baja y A3 descartando los ACK cuyo destino no es el receptor. La batería completa se repitió después de cada corrección, hasta obtener los nueve casos fallidos de la Tabla~\ref{tab:fallidas}.
+
+{\small
+\begin{longtable}{|c|p{8.2cm}|c|p{3.4cm}|}
+\caption{\label{tab:fallidas} Casos con alguna propiedad Fallida en la versión final.}\\
+\hline
+\textbf{Caso} & \textbf{Comportamiento observado} & \textbf{Req.} & \textbf{Tratamiento} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Caso} & \textbf{Comportamiento observado} & \textbf{Req.} & \textbf{Tratamiento} \\
+\hline
+\endhead
+J13 & Un JOIN antiguo capturado y repetido se acepta, puesto que el gateway solo recuerda el último DevNonce, y la sesión del nodo legítimo deja de funcionar. & PRO-8 & Limitación: corregirlo cambia el protocolo de asociación. \\
+\hline
+A4 & El contador de 16~bits da la vuelta sin renovar la clave, de modo que el mismo texto se cifra igual dos veces, y una orden capturada vuelve a ejecutarse pasada media escala del contador del gateway, unas 39~h con sondeo cada 5~s y sincronización cada 30~s. & PRO-8 & Limitación: exige renovar la clave dentro de la sesión. \\
+\hline
+L4 & Con un envío pendiente de confirmación, \texttt{leave()} devuelve \texttt{false}, pero el nodo se da de baja localmente sin avisar al gateway. & PRO-6 & Limitación: situación poco frecuente. \\
+\hline
+L5 & Al darse de baja con un evento en cola, el evento se descarta sin avisar a la aplicación con \texttt{delivered=false}. & PRO-5 & Limitación: situación poco frecuente. \\
+\hline
+P6 & Una segunda carga para el sondeo sobrescribe a la pendiente en lugar de rechazarse, por lo que la primera no llega a entregarse. & PRO-5 & Limitación: el nodo dispone de una sola carga pendiente. \\
+\hline
+U9 & El rescate de un evento no entregado sobrescribe la carga que ya esperaba al sondeo, que no llega a entregarse. & PRO-5 & Limitación: misma causa que P6. \\
+\hline
+U15 & El reintento de un evento se emite sin escuchar el canal, de modo que no detecta que está ocupado. & PRO-3 & Limitación: escuchar podría hacer perder el ACK, como en el defecto~4, y debe probarse en hardware. \\
+\hline
+U16 & Con $W = 2$~ms, cuatro nodos que emiten a la vez entregan los cuatro eventos en 15 de 30~semillas, con una media de 3,3~eventos entregados. & PRO-3 & Limitación: depende de una ventana ciega aún sin medir. \\
+\hline
+D6 & El ACK diferido del gateway se destruye al coincidir con la respuesta del nodo a un POLL, aunque el evento se entrega al retransmitirse. & PRO-3 & Limitación: se recupera con la retransmisión. \\
+\hline
+\end{longtable}
+}
+
+Los nueve casos que mantienen fallos estaban señalados con $^{\dagger}$ en la Tabla~\ref{tab:catalogo}, es decir, su comportamiento problemático se había anticipado.
+
+\subsection{Resultados de las pruebas experimentales}\label{sec:resultados-exp}
+
+A continuación se evalúan los experimentos de la estrés sobre la red. Se ejecutaron con 30~semillas por configuración. Las tasas se acompañan de su intervalo de confianza del 95\,\% sobre el total de eventos y las latencias se expresan como la media, entre réplicas, de la mediana y de los percentiles de cada una.
+
+\subsubsection{Validación del simulador (VAL)}
+
+Primero, conviene comprobar que el simulador reproduce un caso de solución conocida. Se consideran tres intentos y una pérdida independiente $p$ únicamente en la subida, de modo que el ACK, que viaja en bajada, llega siempre. En estas condiciones, un evento solo deja de entregarse si se pierden los tres intentos, lo que ocurre con probabilidad $p^{3}$, por lo que la tasa de entrega es $E = 1 - p^{3}$. Por su parte, se denomina TX al número medio de transmisiones que necesita un evento para llegar al gateway, que se obtiene ponderando por su probabilidad las tres formas de llegar, en el primer, el segundo o el tercer intento:
+
+\begin{equation}
+E = 1 - p^{3}, \qquad \mathrm{TX} = \frac{(1-p) + 2p(1-p) + 3p^{2}(1-p)}{1 - p^{3}}
+\end{equation}
+
+Como se observa en la Tabla~\ref{tab:teoria}, los resultados simulados concuerdan con los valores teóricos. La mayor diferencia en la tasa de entrega se produce con un 35\,\% de pérdida y es de 0,4 puntos porcentuales, dentro de la variabilidad esperable para una simulación de 6000 eventos. Asimismo, los valores de TX coinciden hasta la segunda cifra decimal. Este contraste valida la implementación de la lógica de reintentos y del modelo de pérdida del simulador, aunque no permite extraer conclusiones sobre el comportamiento del canal real, que requiere medidas sobre hardware.
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:teoria} Valores teóricos y simulados con tres intentos y pérdida solo en la subida (VAL, 6000~eventos por nivel). TX es el número medio de transmisiones por evento entregado.}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Pérdida} & \textbf{Entrega teórica} & \textbf{Entrega simulada (IC 95\,\%)} & \textbf{TX teórica} & \textbf{TX simulada} \\
+\hline
+0\,\%  & 100,0\,\% & 100,0\,\% (\ldots) & 1,00 & 1,00 \\
+\hline
+10\,\% & 99,9\,\%  & 99,9\,\% (\ldots)  & 1,11 & 1,11 \\
+\hline
+20\,\% & 99,2\,\%  & 99,2\,\% (\ldots)  & 1,23 & 1,23 \\
+\hline
+35\,\% & 95,7\,\%  & 95,3\,\% (\ldots)  & 1,40 & 1,40 \\
+\hline
+50\,\% & 87,5\,\%  & 87,3\,\% (\ldots)  & 1,57 & 1,57 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Latencia y entrega frente a la pérdida (EXP1)}\label{sec:latencia}
+
+El experimento EXP1 evalúa la entrega fiable ante pérdidas en ambos sentidos, midiendo el tiempo desde que el nodo encola un evento hasta que el gateway lo recibe. Los niveles de pérdida más altos se plantean como escenarios de estrés, no como condiciones habituales de despliegue. Los resultados se recogen en la Tabla~\ref{tab:latencia}.
+
+
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:latencia} Latencia y fiabilidad de un evento frente a la pérdida (EXP1, 6000~eventos por nivel).}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\textbf{Pérdida} & \textbf{Entrega (IC 95\,\%)} & \textbf{Confirmados} & \textbf{Mediana} & \textbf{p95} & \textbf{p99} & \textbf{TX/evento} \\
+\hline
+0\,\%  & 100,0\,\% (99,9--100,0) & 100,0\,\% & 52~ms & 52~ms & 52~ms & 1,00 \\
+\hline
+10\,\% & 99,9\,\% (99,8--100,0) & 99,2\,\% & 52~ms & 1553~ms & 2066~ms & 1,23 \\
+\hline
+20\,\% & 99,5\,\% (99,2--99,6) & 95,2\,\% & 52~ms & 1876~ms & 3186~ms & 1,50 \\
+\hline
+35\,\% & 95,4\,\% (94,8--95,9) & 80,6\,\% & 52~ms & 2993~ms & 3381~ms & 1,92 \\
+\hline
+50\,\% & 87,7\,\% (86,8--88,5) & 58,0\,\% & 52~ms & 3116~ms & 3427~ms & 2,31 \\
+\hline
+\end{tabular}
+\end{table}
+
+Las retransmisiones mantienen la entrega por encima del 87\,\% incluso con la mitad de las tramas perdidas. El coste es un mayor número de transmisiones (hasta 2,31 por evento) y una latencia en p95--p99 de varios segundos, debida a los plazos de confirmación y a las esperas entre reintentos. La mediana, en cambio, se mantiene en 52~ms, el tiempo en el aire de un \texttt{PUSH\_EVENT}. La confirmación se degrada antes que la entrega: con un 20\,\% de pérdida, el 4,2\,\% de los eventos llegó al gateway sin que el nodo recibiera el ACK.
+
+En conjunto, el mecanismo es robusto en entrega y su coste se concentra en latencia y consumo de canal, no en pérdida de datos. Que el nodo reciba «no entregado» no implica que el evento se haya perdido: puede haber llegado al gateway sin que llegara su ACK.
+
+\subsubsection{Contención y colisiones (EXP4 y EXP5)}\label{sec:contencion}
+
+Los experimentos EXP4 y EXP5 aplican el mismo tráfico de eventos sin sondeo y con sondeo cada 5~s, respectivamente, de modo que su diferencia es el coste que introduce el POLL. Ambos varían además la ventana ciega $W$ y el número de nodos. Puesto que el valor real de $W$ se desconoce, los resultados de la Tabla~\ref{tab:contencion} no predicen el comportamiento en despliegue, sino la tolerancia del protocolo ante distintos parámetros.
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:contencion} Colisiones, entrega y latencia con 60~fichajes por minuto en redes de 8 y 32~nodos (EXP4 sin sondeo y EXP5 con sondeo cada 5~s).}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{2}{*}{\textbf{Sondeo}} & \multirow{2}{*}{\textbf{$W$ (ms)}} & \multicolumn{2}{c|}{\textbf{Destruidas}} & \multicolumn{2}{c|}{\textbf{Entrega}} & \multicolumn{2}{c|}{\textbf{p99}} \\
+\cline{3-8}
+ & & \textbf{8 nodos} & \textbf{32 nodos} & \textbf{8 nodos} & \textbf{32 nodos} & \textbf{8 nodos} & \textbf{32 nodos} \\
+\hline
+No & 0 & 0,18\,\% & 0,20\,\% & 99,99\,\% & 99,99\,\% & 271~ms  & 290~ms \\
+\hline
+No & 2 & 0,80\,\% & 0,88\,\% & 99,95\,\% & 99,95\,\% & 452~ms  & 397~ms \\
+\hline
+No & 5 & 2,22\,\% & 2,46\,\% & 99,88\,\% & 99,84\,\% & 1608~ms & 1439~ms \\
+\hline
+Sí & 0 & 1,59\,\% & 1,66\,\% & 99,97\,\% & 99,96\,\% & 1467~ms & 1453~ms \\
+\hline
+Sí & 2 & 2,18\,\% & 2,27\,\% & 99,92\,\% & 99,92\,\% & 1569~ms & 1563~ms \\
+\hline
+\end{tabular}
+\end{table}
+
+Como se observa en la Tabla~\ref{tab:contencion}, las retransmisiones recuperan casi todas las emisiones destruidas y la entrega se mantiene prácticamente completa. El aumento de 8 a 32~nodos apenas modifica los resultados cuando se mantiene constante el tráfico total. Por otra parte, las colisiones aumentan con la ventana ciega (del 0,18 al 2,46\,\% sin sondeo) y el sondeo introduce colisiones adicionales, ya que el gateway transmite sus ACK y POLL sin escuchar el canal. Esta decisión simplifica su funcionamiento y garantiza la puntualidad de las respuestas, pero incrementa la latencia: aunque la mayoría de los eventos llega en el primer intento, los afectados por colisiones suelen necesitar retransmisiones, lo que eleva los percentiles superiores por encima del segundo.
+
+
+
+\subsubsection{Tiempo en el aire y ciclo de trabajo}\label{sec:dutycycle}
+
+Como complemento, se realizan estimaciones del ciclo de trabajo del gateway. El tiempo en el aire de cada trama se obtiene mediante la ecuación~\ref{eq:toa} con SF7, 125~kHz, CR~4/5, preámbulo de 8~símbolos, cabecera explícita y CRC. Con estos parámetros, las tramas van desde unos 41~ms para las que no llevan carga, como el \texttt{POLL} o el \texttt{ACK}, hasta unos 133~ms para la trama máxima. Un \texttt{PUSH\_EVENT} con un registro de asistencia ocupa 51,5~ms, que el simulador redondea a 52~ms.
+
+El ciclo de trabajo de cada dispositivo depende solo de unos pocos parámetros del protocolo:
+\begin{equation}
+\label{eq:duty}
+DC_{\text{gw}} = \frac{T_{\text{POLL}} + a\,T_{\text{ACK}}}{T_{\text{poll}}} + \frac{T_{\text{SYNC}}}{T_{\text{sync}}},
+\qquad
+DC_{\text{nodo}} = \frac{T_{\text{RESP}}}{N\,T_{\text{poll}}}
+\end{equation}
+donde $T_{\text{poll}}$ es el intervalo entre dos \texttt{POLL} consecutivos, $T_{\text{sync}}$ el intervalo de sincronización, $N$ el número de nodos y $a$ la fracción de respuestas que requieren confirmación.
+
+Con un sondeo cada 5~s y una sincronización cada 30~s, el gateway ocupa el canal un 0,98\,\% del tiempo (0,82\,\% por los \texttt{POLL} y 0,15\,\% por los \texttt{TIME\_SYNC}). Este valor sube al 1,80\,\% en el caso extremo en que todas las respuestas requieren confirmación, y llega al 5,09\,\% medido en EXP5 con 60~eventos por minuto, en todos los casos por debajo del límite. Un nodo, en una red de un solo nodo, ocupa un 1,13\,\%, y este valor se divide entre $N$ a medida que la red crece, porque sus turnos se espacian. Por tanto, el protocolo escala bien en este aspecto: el consumo del gateway depende únicamente de $T_{\text{poll}}$ y no del número de nodos. Aun así, la librería comprueba este valor al arrancar y se niega a iniciar el gateway si el sondeo configurado excede el límite; con el intervalo por defecto de 2~s, los \texttt{POLL} suponen un 2,06\,\%, todavía lejos de él.
+
+Este margen depende, sobre todo, del factor de ensanchamiento. Con SF12 las tramas son unas 28~veces más largas (un \texttt{POLL} pasa de 41,2 a 1155~ms), por lo que el intervalo entre \texttt{POLL} debería superar los 11,6~s para que el gateway siga por debajo del ciclo de trabajo máximo, como se recoge en la Tabla~\ref{tab:duty}.
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:duty} Intervalo mínimo entre \texttt{POLL} según el factor de ensanchamiento (125~kHz, CR~4/5).}
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{SF} & \textbf{ToA del \texttt{POLL}} & \textbf{$T_{\text{poll}}$ mínimo} \\
+\hline
+7  & 41,2~ms   & 0,41~s \\ \hline
+8  & 82,4~ms   & 0,82~s \\ \hline
+9  & 144,4~ms  & 1,44~s \\ \hline
+10 & 288,8~ms  & 2,89~s \\ \hline
+11 & 577,5~ms  & 5,78~s \\ \hline
+12 & 1155,1~ms & 11,6~s \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{Limitaciones detectadas}\label{sec:limitaciones-val}
+
+Los resultados de este capítulo deben interpretarse teniendo en cuenta tres tipos de límites: los del propio simulador, las limitaciones que conserva el protocolo en su versión final y el alcance, todavía reducido, de la validación sobre placas reales.
+
+En primer lugar, el canal virtual no está calibrado frente a medidas reales: no modela ruido, desvanecimiento ni obstáculos que degraden la señal, por lo que las pérdidas y colisiones son una abstracción del comportamiento físico. Además, el simulador no aplica los mecanismos criptográficos del diseño, sino un MIC ficticio. Por último, los resultados esperados los redacta quien diseñó el protocolo y solo se ejecuta una selección del catálogo de pruebas, de modo que superar la batería no garantiza la ausencia de defectos y sería necesario ampliar su cobertura.
+
+En segundo lugar, la versión final del protocolo conserva las siguientes limitaciones:
+
+\begin{itemize}
+
+\item \textbf{Fallos descubiertos}: los nueve casos de la Tabla~\ref{tab:fallidas} impiden afirmar que se cumplan por completo los requisitos PRO-3, PRO-5, PRO-6 y PRO-8. Entre ellos destacan dos debilidades de seguridad distintas. Por un lado, como el gateway solo recuerda el último DevNonce, un JOIN antiguo capturado puede repetirse y aceptarse, lo que deja sin servicio la sesión del nodo legítimo. Por otro, el contador de 16~bits da la vuelta sin que se renueve la clave, por lo que una orden capturada vuelve a ser válida pasada media escala del contador.
+
+\item \textbf{Gateway sin escucha previa}: el gateway emite sus POLL y sus ACK sin comprobar si el canal está ocupado. En las condiciones simuladas, en torno a un 1\,\% de los eventos colisiona con un POLL en su primer intento, aunque esta cifra depende del escenario y no puede generalizarse.
+
+\item \textbf{Recuperación lenta tras el reinicio del gateway}: los nodos solo detectan el reinicio por la ausencia de paquetes, de modo que no se reasocian hasta que vence el plazo de silencio, de tres rondas de sondeo sin actividad, y durante ese tiempo se pierde la mayor parte de los eventos. Este plazo tampoco puede reducirse por debajo del tiempo entre dos turnos de un mismo nodo, porque en ese caso los nodos se reasociarían sin motivo.
+
+\item \textbf{Capacidad}: la red admite 32~nodos y, con un POLL cada 5~s, cada nodo recibe su turno cada $5N$~s, es decir, cada 160~s con la tabla completa, lo que limitará la posibilidad de adquirir telemetría dependiendo de la aplicación concreta y de la información a transmitir.
+\end{itemize}
+
+Por último, la validación sobre hardware se limita a un escenario de laboratorio con dos placas ESP32 con SX1276 y una tercera como analizador. En él se verificaron la asociación automática, el funcionamiento conjunto del nodo y del gateway sobre Raspberry Pi, la interoperabilidad de la criptografía real y la confirmación con carga útil. Quedan sin medir en placas reales el alcance y el comportamiento con muchos nodos.
+
+\section{Síntesis del capítulo}
+
+En este capítulo se ha validado LoRaLAN mediante un simulador que ejecuta la librería real sin modificarla. Sobre él se han ejecutado 87~casos funcionales, vinculados a los requisitos del Capítulo~\ref{chap:3}, y varios experimentos de rendimiento.
+
+El simulador reprodujo los valores teóricos y la batería detectó fallos reales. Tras las correcciones, se superan todas las propiedades de PRO-1, PRO-2, PRO-4, PRO-7 y PRO-9. Sin pérdidas, la entrega superó el 99,8\,\% con una mediana de 52~ms. Con pérdidas, el protocolo se degradó de forma gradual y se recuperó de todos los cortes. Además, el ciclo de trabajo del gateway queda muy por debajo del 10\,\% y no depende del número de nodos sino de la frecuencia a la que se consulte a los nodos.
+
+Sin embargo, nueve casos siguen fallando, lo que impide afirmar el cumplimiento completo de PRO-3, PRO-5, PRO-6 y PRO-8. Destacan la repetición de JOIN bajo algunas circunstancias y de órdenes antiguas, la ausencia de escucha previa en el gateway, la recuperación lenta tras su reinicio y los falsos inactivos. Como todas las cifras proceden de un simulador sin calibrar y la validación en hardware es todavía limitada, estos resultados no sustituyen en ningún caso a pruebas realizadas sobre hardware.
