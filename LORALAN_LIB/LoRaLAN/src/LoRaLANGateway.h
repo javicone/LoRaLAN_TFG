@@ -13,6 +13,9 @@
 class LoRaLANGateway final : public LoRaLANDevice {
 public:
     static constexpr uint8_t kMaxNodes = 32;
+    // Espacio de direcciones: 0x01..0x7F manuales (configuradas en el nodo),
+    // 0x80..0xFE dinamicas (las reparte el gateway de arriba abajo).
+    static constexpr uint8_t kFirstDynamicId = 0x80;
 
     struct Config : BaseConfig {
         uint8_t gatewayId = 0;
@@ -27,7 +30,7 @@ public:
     };
 
     // Callback de altas/bajas de nodos.
-    using NodeStatusCallback = void (*)(uint8_t nodeId, uint8_t nodeType);
+    using NodeStatusCallback = void (*)(uint8_t nodeId);
 
     explicit LoRaLANGateway(PhysicalLayer& radio);
 
@@ -54,6 +57,8 @@ public:
     // Estado de la tabla de nodos.
     uint8_t nodeCount() const;
     bool isAlive(uint8_t nodeId, uint32_t maxAgeMs) const;
+    // Identificador de fabrica del nodo con esa direccion. false si no esta en la tabla.
+    bool nodeHwId(uint8_t nodeId, uint8_t out[LORALAN_HWID_SIZE]) const;
 
     void setOnPushEvent(EventCallback cb) { onPushEvent_ = cb; }
     void setOnPollResponse(EventCallback cb) { onPollResponse_ = cb; }
@@ -67,13 +72,14 @@ private:
 
     struct NodeEntry {
         uint8_t nodeId = 0;
-        uint8_t nodeType = 0;
+        uint8_t hwId[LORALAN_HWID_SIZE] = {0};
         uint32_t lastSeen = 0;
         uint16_t lastDevNonce = 0;
         uint8_t sessionKey[16] = {0};
-        // Anti-repeticion: ultima secuencia aceptada de este nodo. haveSeq se
+        // Anti-repeticion: ultima secuencia de este nodo y mapa de las anteriores. haveSeq se
         // pone a false en cada JOIN para resincronizar (un nodo que reinicia
         // arranca su contador de nuevo).
+        uint64_t seqSeen = 0;
         uint16_t lastSeq = 0;
         bool haveSeq = false;
         // POLL enviados desde la ultima trama recibida del nodo.
@@ -100,11 +106,15 @@ private:
     void onDeferredPush(const LoRaLANFrame& frame);
     void deliverNodeData(const LoRaLANFrame& frame, EventCallback cb);
 
-    bool sendJoinAccept(uint8_t dstId, uint8_t assignedId, uint16_t devNonce, uint8_t status);
+    bool sendJoinAccept(uint8_t assignedId, uint16_t devNonce, uint8_t status,
+                        const uint8_t hwId[LORALAN_HWID_SIZE]);
 
     void resetNodeTable();
     int findNodeIndex(uint8_t nodeId) const;
-    int findOrCreateNode(uint8_t nodeId, uint8_t nodeType);
+    int findNodeByHwId(const uint8_t hwId[LORALAN_HWID_SIZE]) const;
+    // Direccion para un nodo nuevo: la preferida si esta libre; si no, la
+    // libre mas alta. 0 si no queda ninguna.
+    uint8_t chooseAddress(uint8_t preferred) const;
 
     uint32_t pollIntervalMs_ = 2000UL;
     uint32_t timeSyncIntervalMs_ = 30000UL;

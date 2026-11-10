@@ -169,7 +169,8 @@ Si falla `Inicializando SX1276`:
   de `Documents/Arduino/libraries/LoRaLAN`, porque la copia que usa el IDE está desfasada.
 - Pines del SX1276: CS=15, RST=13, DIO0=4. Bus SPI compartido con el PN532: SCK=18,
   MISO=19, MOSI=23; CS del PN532 = 5, IRQ = 34. PN532 a **3,3 V**.
-- Al arrancar hace el JOIN y el servidor da de alta el nodo (`node-002`) con la primera trama.
+- Al arrancar hace el JOIN y el servidor da de alta el nodo con la primera trama (`node-254` si la
+  dirección es dinámica, la primera que reparte el gateway; `node-NNN` si es manual).
 - Asignar el aula al nodo desde el panel de administrador; sin aula, los fichajes devuelven
   `DESCONOCIDO` (LED rojo).
 

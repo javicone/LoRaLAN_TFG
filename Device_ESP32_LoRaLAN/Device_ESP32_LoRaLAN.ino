@@ -46,7 +46,7 @@ void setup() {
   pinMode(ledAmarilloPin, OUTPUT);
   pinMode(buzzerPin, OUTPUT);
   Serial.begin(115200);
-  Serial.printf("\nNodo LoRaLAN %d (node-%03d)\n", LORALAN_NODE_ID, LORALAN_NODE_ID);
+  Serial.println("\nNodo LoRaLAN");
 
   secuenciaInicio();
   initSensores();   // incluye setupNFC(), que inicia el bus SPI compartido con la radio

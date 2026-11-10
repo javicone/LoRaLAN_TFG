@@ -5,7 +5,7 @@
 // DEFINICIONES REALES (aquí existe la variable única)
 // ============================================
 // Sin WiFi, servidor, certificados ni NTP: el nodo solo habla LoRaLAN con el
-// gateway, y la identidad del nodo es LORALAN_NODE_ID (config.h).
+// gateway. Su direccion la asigna el gateway y se guarda en NVS (lora_node.cpp).
 
 // ============================================
 // OBJETOS DE SENSORES

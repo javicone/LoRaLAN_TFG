@@ -123,41 +123,57 @@ bool LoRaLANGateway::onFrame(const LoRaLANFrame& frame) {
 }
 
 bool LoRaLANGateway::onJoinRequest(const LoRaLANFrame& frame) {
-    if (frame.header.payloadLen < 3 || appKey_[0] == 0) {
+    if (frame.header.payloadLen < 2 + LORALAN_HWID_SIZE || appKey_[0] == 0) {
         return false;
     }
 
-    const uint8_t nodeType = frame.payload[0];
-    const uint16_t devNonce = static_cast<uint16_t>(frame.payload[1] << 8) | frame.payload[2];
-    const int idx = findOrCreateNode(frame.header.srcId, nodeType);
+    const uint16_t devNonce = static_cast<uint16_t>(frame.payload[0] << 8) | frame.payload[1];
+    const uint8_t* hwId = frame.payload + 2;
+
+    // Direccionamiento dinamico: el nodo se reconoce por su identificador de
+    // fabrica y conserva su direccion mientras el gateway siga en marcha. Si
+    // es nuevo (o el gateway se reinicio), recibe la que pide (srcId) si esta
+    // libre. La tabla vive en RAM; la persistencia la pone el nodo, que guarda
+    // su direccion y la vuelve a pedir.
+    int idx = findNodeByHwId(hwId);
     if (idx < 0) {
-        return false;
+        const uint8_t assigned = chooseAddress(frame.header.srcId);
+        if (assigned == 0 || numNodes_ >= kMaxNodes) {
+            return false;   // tabla o espacio de direcciones lleno
+        }
+        idx = numNodes_++;
+        nodes_[idx] = NodeEntry{};
+        nodes_[idx].nodeId = assigned;
+        memcpy(nodes_[idx].hwId, hwId, LORALAN_HWID_SIZE);
     }
+    NodeEntry& node = nodes_[idx];
 
     // Anti-repeticion del JOIN: un JOIN_REQUEST capturado y reinyectado haria
     // que el gateway volviese a derivar la clave y reiniciase la sesion. No
     // estorba a los reintentos legitimos: el nodo sortea un DevNonce nuevo en
     // cada intento.
-    if (nodes_[idx].joined && devNonce == nodes_[idx].lastDevNonce) {
+    if (node.joined && devNonce == node.lastDevNonce) {
         return false;
     }
 
-    if (!loralan_crypto::deriveSessionKey(appKey_, base_.netId, frame.header.srcId, devNonce, nodes_[idx].sessionKey)) {
+    // La clave se deriva con la direccion asignada, que es la que el nodo
+    // usara como origen a partir de ahora.
+    if (!loralan_crypto::deriveSessionKey(appKey_, base_.netId, node.nodeId, devNonce, node.sessionKey)) {
         return false;   // sin KDF no hay sesion ni JOIN_ACCEPT
     }
-    nodes_[idx].lastSeen = millis();
-    nodes_[idx].active = true;
-    nodes_[idx].missedPolls = 0;
-    nodes_[idx].lastDevNonce = devNonce;
-    nodes_[idx].joined = true;
+    node.lastSeen = millis();
+    node.active = true;
+    node.missedPolls = 0;
+    node.lastDevNonce = devNonce;
+    node.joined = true;
     // Sesion nueva: se resincroniza el contador de secuencia, de modo que un
     // nodo que ha reiniciado no queda bloqueado por la ventana.
-    nodes_[idx].haveSeq = false;
-    nodes_[idx].ack = AckState::NONE;
+    node.haveSeq = false;
+    node.ack = AckState::NONE;
 
-    sendJoinAccept(frame.header.srcId, frame.header.srcId, devNonce, 0x00);
+    sendJoinAccept(node.nodeId, devNonce, 0x00, node.hwId);
     if (onNodeJoined_ != nullptr) {
-        onNodeJoined_(frame.header.srcId, nodeType);
+        onNodeJoined_(node.nodeId);
     }
     return true;
 }
@@ -165,10 +181,17 @@ bool LoRaLANGateway::onJoinRequest(const LoRaLANFrame& frame) {
 void LoRaLANGateway::onLeave(const LoRaLANFrame& frame) {
     const int idx = findNodeIndex(frame.header.srcId);
     if (idx >= 0 && nodes_[idx].joined) {
+        // El ACK se firma con la clave de sesion: va antes de darlo de baja.
+        // Si se pierde, la repeticion del LEAVE ya no pasa el MIC y el nodo
+        // termina la baja al agotar sus reintentos.
+        if (LoRaLANPacket::isAckRequired(frame)) {
+            sendAck(frame.header.srcId, frame.header.seq);
+            ackHandled_ = true;
+        }
         nodes_[idx].joined = false;
         nodes_[idx].active = false;
         if (onNodeLeft_ != nullptr) {
-            onNodeLeft_(nodes_[idx].nodeId, nodes_[idx].nodeType);
+            onNodeLeft_(nodes_[idx].nodeId);
         }
     }
 }
@@ -183,7 +206,7 @@ void LoRaLANGateway::onNodeData(const LoRaLANFrame& frame, EventCallback cb) {
         // Anti-repeticion. Una trama ya vista NO se entrega otra vez a la app,
         // pero onFrame devuelve true igualmente para que se reenvie el ACK: si
         // el emisor retransmitio es porque no le llego, y sin ACK seguiria.
-        if (!acceptSeq(frame.header.seq, nodes_[idx].lastSeq, nodes_[idx].haveSeq)) {
+        if (!acceptSeq(frame.header.seq, nodes_[idx].lastSeq, nodes_[idx].seqSeen, nodes_[idx].haveSeq)) {
             return;
         }
     }
@@ -203,7 +226,7 @@ void LoRaLANGateway::onDeferredPush(const LoRaLANFrame& frame) {
     node.active = true;
     node.missedPolls = 0;
 
-    if (!acceptSeq(seq, node.lastSeq, node.haveSeq)) {
+    if (!acceptSeq(seq, node.lastSeq, node.seqSeen, node.haveSeq)) {
         // Retransmision: el nodo no recibio el ACK. No se entrega otra vez a la app.
         if (node.ackSeq == seq && node.ack == AckState::READY) {
             sendAck(src, seq, node.ackPayload, node.ackLen);   // misma respuesta
@@ -257,12 +280,15 @@ void LoRaLANGateway::deliverNodeData(const LoRaLANFrame& frame, EventCallback cb
     }
 }
 
-bool LoRaLANGateway::sendJoinAccept(uint8_t dstId, uint8_t assignedId, uint16_t devNonce, uint8_t status) {
+bool LoRaLANGateway::sendJoinAccept(uint8_t assignedId, uint16_t devNonce, uint8_t status,
+                                    const uint8_t hwId[LORALAN_HWID_SIZE]) {
     uint8_t buffer[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
     uint16_t len = 0;
     const uint16_t seq = manager_.nextSequence();
 
-    if (!LoRaLANPacket::buildJoinAccept(buffer, base_.netId, localId_, dstId, assignedId, devNonce, status, seq, len)) {
+    // Va dirigido a la direccion asignada: tras adoptarla, el nodo confirma con ACK.
+    if (!LoRaLANPacket::buildJoinAccept(buffer, base_.netId, localId_, assignedId, assignedId, devNonce, status,
+                                        hwId, seq, len)) {
         return false;
     }
 
@@ -281,7 +307,10 @@ void LoRaLANGateway::onProcess() {
 
     if (pollIntervalMs_ > 0 && now - lastPollMs_ >= pollIntervalMs_ && numNodes_ > 0) {
         for (uint8_t attempts = 0; attempts < numNodes_; ++attempts) {
-            const uint8_t idx = pollIndex_++ % numNodes_;
+            // El modulo se aplica al guardar: con ++ y uint8_t, el indice se desajustaba
+            // al dar la vuelta si numNodes_ no divide a 256.
+            const uint8_t idx = pollIndex_ % numNodes_;
+            pollIndex_ = static_cast<uint8_t>((idx + 1) % numNodes_);
             NodeEntry& node = nodes_[idx];
             if (!node.joined) {
                 continue;
@@ -290,7 +319,7 @@ void LoRaLANGateway::onProcess() {
             if (maxMissedPolls_ > 0 && node.active && node.missedPolls >= maxMissedPolls_) {
                 node.active = false;
                 if (onNodeInactive_ != nullptr) {
-                    onNodeInactive_(node.nodeId, node.nodeType);
+                    onNodeInactive_(node.nodeId);
                 }
             }
             if (node.missedPolls < 255) {
@@ -320,20 +349,37 @@ int LoRaLANGateway::findNodeIndex(uint8_t nodeId) const {
     return -1;
 }
 
-int LoRaLANGateway::findOrCreateNode(uint8_t nodeId, uint8_t nodeType) {
-    const int index = findNodeIndex(nodeId);
-    if (index >= 0) {
-        return index;
+int LoRaLANGateway::findNodeByHwId(const uint8_t hwId[LORALAN_HWID_SIZE]) const {
+    for (uint8_t i = 0; i < numNodes_; ++i) {
+        if (memcmp(nodes_[i].hwId, hwId, LORALAN_HWID_SIZE) == 0) {
+            return i;
+        }
     }
+    return -1;
+}
 
-    if (numNodes_ >= kMaxNodes) {
-        return -1;
+uint8_t LoRaLANGateway::chooseAddress(uint8_t preferred) const {
+    auto usable = [this](uint8_t id) {
+        return id != 0 && id != 0xFF && id != localId_ && findNodeIndex(id) < 0;
+    };
+    if (usable(preferred)) {
+        return preferred;
     }
+    // Sin preferencia o con la preferida ocupada se asigna del rango dinamico,
+    // de arriba abajo; el rango manual nunca se reparte.
+    for (uint8_t id = 0xFE; id >= kFirstDynamicId; --id) {
+        if (usable(id)) {
+            return id;
+        }
+    }
+    return 0;
+}
 
-    nodes_[numNodes_] = NodeEntry{};
-    nodes_[numNodes_].nodeId = nodeId;
-    nodes_[numNodes_].nodeType = nodeType;
-    nodes_[numNodes_].lastSeen = millis();
-    nodes_[numNodes_].active = true;
-    return numNodes_++;
+bool LoRaLANGateway::nodeHwId(uint8_t nodeId, uint8_t out[LORALAN_HWID_SIZE]) const {
+    const int idx = findNodeIndex(nodeId);
+    if (idx < 0 || out == nullptr) {
+        return false;
+    }
+    memcpy(out, nodes_[idx].hwId, LORALAN_HWID_SIZE);
+    return true;
 }

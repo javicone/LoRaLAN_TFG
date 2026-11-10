@@ -2,18 +2,14 @@
 
 namespace {
 
-// Ventana de aceptacion del numero de secuencia.
-//
-// El campo seq es de 2 bytes, asi que la comparacion es modular (2^16). Se
-// acepta una trama cuyo seq este por delante del ultimo aceptado dentro de
-// esta ventana; se rechaza el duplicado exacto (delta 0) y cualquier valor muy
-// alejado, que corresponde a una repeticion antigua.
-//
-// 64 tolera perder hasta 63 tramas consecutivas de un nodo sin
-// desincronizarse, y deja fuera de la ventana las tramas capturadas hace
-// tiempo: una trama vieja solo volveria a entrar tras 65536 tramas nuevas. Si un nodo reinicia, su contador vuelve a
-// empezar, pero entonces re-JOIN y el JOIN resincroniza (haveSeq = false).
-constexpr uint8_t kSeqWindow = 64;
+// Anti-repeticion: ultima secuencia y mapa de las anteriores ya vistas. Una trama
+// se reintenta con su secuencia original, asi que puede llegar detras de otra
+// posterior (una respuesta a un POLL, por ejemplo): por eso una secuencia anterior
+// no vista se acepta. Cualquier avance de hasta media escala es valido, porque el
+// MIC ya se ha verificado. Limite: pasada media escala, una captura vuelve a parecer
+// nueva y desplaza lastSeq, asi que hay que renovar la clave antes de llegar ahi.
+// Si un nodo reinicia, el JOIN resincroniza (haveSeq = false).
+constexpr uint16_t kSeqHistory = 64;
 
 // Tope de espera del CAD. Un CAD dura ~2 simbolos: 2 ms en SF7/125 kHz y
 // ~66 ms en SF12/125 kHz. Si se supera, la radio no ha respondido.
@@ -87,6 +83,9 @@ bool LoRaLANDevice::handleReceived(const uint8_t* buffer, size_t len) {
     }
 
     if (frame.header.type == static_cast<uint8_t>(MsgType::ACK)) {
+        if (frame.header.dstId != localId_) {
+            return false;   // ACK ajeno o reflejado: el propio ACK reinyectado lleva otro destino
+        }
         manager_.notifyAck(frame.header.seq, frame.payload, frame.header.payloadLen);
         return true;
     }
@@ -179,18 +178,26 @@ LoRaLANDevice::ChannelState LoRaLANDevice::checkChannel() {
     return result == RADIOLIB_CHANNEL_FREE ? ChannelState::FREE : ChannelState::ERROR;
 }
 
-bool LoRaLANDevice::acceptSeq(uint16_t seq, uint16_t& lastSeq, bool& haveSeq) {
+bool LoRaLANDevice::acceptSeq(uint16_t seq, uint16_t& lastSeq, uint64_t& seen, bool& haveSeq) {
     if (!haveSeq) {          // primera trama de la sesion: fija el origen
         haveSeq = true;
+        lastSeq = seq;
+        seen = 1;
+        return true;
+    }
+
+    const uint16_t ahead = static_cast<uint16_t>(seq - lastSeq);
+    if (ahead != 0 && ahead < 0x8000) {
+        seen = ahead >= kSeqHistory ? 0 : seen << ahead;
+        seen |= 1;
         lastSeq = seq;
         return true;
     }
 
-    const uint16_t delta = static_cast<uint16_t>(seq - lastSeq);
-    if (delta == 0 || delta > kSeqWindow) {
+    const uint16_t back = static_cast<uint16_t>(lastSeq - seq);
+    if (back >= kSeqHistory || ((seen >> back) & 1) != 0) {
         return false;
     }
-
-    lastSeq = seq;
+    seen |= static_cast<uint64_t>(1) << back;
     return true;
 }

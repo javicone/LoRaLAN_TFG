@@ -4,12 +4,15 @@
 #include <Arduino.h>
 
 // Version del protocolo en el wire format.
-#define LORALAN_VERSION 0x02
+#define LORALAN_VERSION 0x01
 
 // Limites del wire format.
 #define LORALAN_MAX_PAYLOAD 64
 #define LORALAN_HEADER_SIZE 7
 #define LORALAN_MIC_SIZE 4
+// Identificador de fabrica del nodo (la MAC del ESP32). Viaja en el JOIN para
+// que el gateway reconozca al nodo y le devuelva siempre la misma direccion.
+#define LORALAN_HWID_SIZE 6
 
 // Tipos de mensaje usados por la MAC.
 enum class MsgType : uint8_t {
@@ -124,18 +127,20 @@ public:
         uint16_t& totalLen
     );
 
-    // Constructor JOIN_REQUEST con DevNonce.
+    // Constructor JOIN_REQUEST con DevNonce e identificador de fabrica.
+    // srcId es la direccion preferida (0 = cualquiera).
     static bool buildJoinRequest(
         uint8_t* buffer,
         uint8_t netId,
         uint8_t srcId,
-        uint8_t nodeType,
         uint16_t devNonce,
+        const uint8_t hwId[LORALAN_HWID_SIZE],
         uint16_t seq,
         uint16_t& totalLen
     );
 
-    // Constructor JOIN_ACCEPT con ID asignado.
+    // Constructor JOIN_ACCEPT con ID asignado y el identificador de fabrica
+    // del nodo al que va dirigido.
     static bool buildJoinAccept(
         uint8_t* buffer,
         uint8_t netId,
@@ -144,6 +149,7 @@ public:
         uint8_t assignedId,
         uint16_t devNonce,
         uint8_t status,
+        const uint8_t hwId[LORALAN_HWID_SIZE],
         uint16_t seq,
         uint16_t& totalLen
     );

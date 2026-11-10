@@ -211,13 +211,17 @@ static void onPollResponse(const LoRaLANFrame& frame, const uint8_t* payload, ui
     }
 }
 
-static void onNodeJoined(uint8_t nodeId, uint8_t) {
+static void onNodeJoined(uint8_t nodeId) {
     encolarUplink(bridge::estadoJson(g_gwName, nodeId, true));
-    Serial.print(F("Nodo asociado: "));
-    Serial.println((unsigned long)nodeId);
+    uint8_t mac[LORALAN_HWID_SIZE] = {0};
+    g_gateway->nodeHwId(nodeId, mac);
+    char linea[64];
+    snprintf(linea, sizeof(linea), "Nodo asociado: %u (MAC %02X:%02X:%02X:%02X:%02X:%02X)",
+             nodeId, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    Serial.println(linea);
 }
 
-static void onNodeLeft(uint8_t nodeId, uint8_t) {
+static void onNodeLeft(uint8_t nodeId) {
     encolarUplink(bridge::estadoJson(g_gwName, nodeId, false));
     Serial.print(F("Nodo dado de baja: "));
     Serial.println((unsigned long)nodeId);

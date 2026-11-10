@@ -225,7 +225,11 @@ static void procesarTrama(const uint8_t* buf, size_t len, float rssi, float snr,
 
   switch (static_cast<MsgType>(tipo)) {
     case MsgType::JOIN_REQUEST:
-      INFO("JOIN pedido por nodo %u", h.srcId);
+      if (h.payloadLen >= 2 + LORALAN_HWID_SIZE) {
+        const uint8_t* mac = f.payload + 2;
+        INFO("JOIN de %02X:%02X:%02X:%02X:%02X:%02X, pide %u",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], h.srcId);
+      }
       break;
 
     case MsgType::JOIN_ACCEPT: {

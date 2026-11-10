@@ -242,8 +242,9 @@ bajan diez veces: 0,41 s en SF7 y 11,5 s en SF12. El POLL de 5 s consume el 0,82
 `Device_ESP32_LoRaLAN/` es el firmware de aula sin WiFi: NFC, sensores, relés y
 pantalla como antes, pero hablando LoRaLAN con el gateway.
 
-- **Identidad**: `LORALAN_NODE_ID` en `config.h`, distinto en cada placa. En el
-  servidor el nodo 2 es `node-002`. Radio y `LORALAN_APP_KEY` deben coincidir con el gateway.
+- **Identidad**: `LORALAN_NODE_ID` en `config.h`: `0` (por defecto) pide dirección
+  dinámica, que el gateway reparte de `0xFE` hacia abajo hasta `0x80`; 1–127 fija una manual,
+  distinta en cada placa. El nodo guarda la asignada en NVS. En el servidor el nodo 2 es `node-002`. Radio y `LORALAN_APP_KEY` deben coincidir con el gateway.
 - **Pines del SX1276**: CS=15, RST=13, DIO0=4 (los LEDs siguen en 25/27/14).
 - **Dos núcleos**: la radio corre en el core 0 (`lora_node.cpp`); NFC, sensores,
   LEDs y pantalla en `loop()`. Se pasan datos por colas, así un `delay` de un LED

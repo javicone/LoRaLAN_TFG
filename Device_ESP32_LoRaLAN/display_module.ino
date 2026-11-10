@@ -93,7 +93,7 @@ void updateDisplay() {
   // ═══════════════════════════════════════
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.printf("Nodo %03d", LORALAN_NODE_ID);
+  display.printf("Nodo %03d", loraDireccion());
 
   display.setCursor(95, 0);
   display.print(loraAsociado() ? F("LoRa") : F("!LoRa"));

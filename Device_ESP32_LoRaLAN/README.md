@@ -122,8 +122,9 @@ rangos del datasheet (valor fuera de rango → lectura no válida). Los relés s
 
 ## Configuración (`config.h`)
 
-- `LORALAN_NODE_ID`: **distinto en cada placa** (1–254). En el servidor el nodo 2 es
-  `node-002`.
+- `LORALAN_NODE_ID`: `0` (por defecto) = dirección dinámica, la elige el gateway entre
+  `0x80` y `0xFE` (de arriba abajo); 1–127 = manual, **distinta en cada placa**. La asignada
+  se guarda en NVS y se vuelve a pedir. En el servidor el nodo 2 es `node-002`.
 - Radio y `LORALAN_APP_KEY` deben coincidir con el gateway.
 - SX1276: CS=15, RST=13, DIO0=4. Comparte el bus SPI (18/19/23) con el PN532 (CS=5);
   el core de ESP32 serializa las transacciones SPI entre tareas.

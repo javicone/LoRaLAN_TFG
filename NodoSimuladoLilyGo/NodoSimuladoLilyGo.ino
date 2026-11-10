@@ -18,10 +18,9 @@
 #include "AppProtocol.h"
 
 // ---------- Identidad: distinta de cualquier otro nodo de la red ----------
-#define LORALAN_NODE_ID     3        // en el servidor sera "node-003"
+#define LORALAN_NODE_ID     3        // direccion pedida; el gateway la concede si esta libre
 #define LORALAN_NET_ID      0x42
 #define LORALAN_GATEWAY_ID  0x00
-#define LORALAN_NODE_TYPE   0x01     // nodo de aula
 
 // ---------- Radio: igual que el gateway ----------
 #define LORA_FREQ_MHZ       869.525
@@ -205,7 +204,7 @@ static bool onPollRequest(uint8_t* payload, uint8_t& len) {
 }
 
 static void onAsociado(const LoRaLANFrame&, const uint8_t*, uint8_t) {
-  Serial.println("[LoRa] Asociado al gateway");
+  Serial.printf("[LoRa] Asociado al gateway como node-%03u\n", nodo.getConfig().nodeId);
   relesCambiados = true;
 }
 
@@ -217,7 +216,7 @@ void setup() {
   pinMode(BOTON_PIN, INPUT_PULLUP);
   randomSeed(esp_random());
   delay(1000);
-  Serial.printf("\nNodo SIMULADO LoRaLAN %d (node-%03d)\n", LORALAN_NODE_ID, LORALAN_NODE_ID);
+  Serial.printf("\nNodo SIMULADO LoRaLAN, pide node-%03d\n", LORALAN_NODE_ID);
 
   spiLoRa.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
   int state = radio.begin(LORA_FREQ_MHZ, LORA_BW_KHZ, LORA_SF, LORA_CR,
@@ -230,8 +229,13 @@ void setup() {
   LoRaLANNode::Config cfg;
   cfg.netId = LORALAN_NET_ID;
   cfg.nodeId = LORALAN_NODE_ID;
+  // ponytail: sin NVS; tras reiniciarse pide de nuevo LORALAN_NODE_ID, que el
+  // gateway le devuelve mientras siga en marcha (la reconoce por la MAC).
+  const uint64_t mac = ESP.getEfuseMac();
+  for (int i = 0; i < LORALAN_HWID_SIZE; ++i) {
+    cfg.hwId[i] = uint8_t(mac >> (8 * i));
+  }
   cfg.gatewayId = LORALAN_GATEWAY_ID;
-  cfg.nodeType = LORALAN_NODE_TYPE;
   cfg.appKey = LORALAN_APP_KEY;
   nodo.begin(cfg);
   nodo.setOnJoinAccepted(onAsociado);

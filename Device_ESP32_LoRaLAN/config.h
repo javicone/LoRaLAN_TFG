@@ -7,12 +7,17 @@
 // Debe coincidir con el gateway (controlAsistenciaMigrado/gatewayLoRaLAN/src/config.h
 // y la APP_KEY de su main.cpp).
 
-// Id del nodo en la red LoRaLAN (1..254), distinto en cada placa. En el
-// servidor este nodo es "node-NNN" (p. ej. 2 -> node-002).
-#define LORALAN_NODE_ID     2
+// Direccion LoRaLAN que el nodo pide la primera vez: 0 = dinamica (el gateway
+// la elige en 0x80..0xFE); 1..127 = manual (cada placa la suya, sin repetir).
+// El nodo guarda en NVS la asignada para pedir siempre la misma.
+// En el servidor el nodo es "node-NNN" (p. ej. 2 -> node-002).
+#define LORALAN_NODE_ID     0
 #define LORALAN_NET_ID      0x42
 #define LORALAN_GATEWAY_ID  0x00
-#define LORALAN_NODE_TYPE   0x01   // nodo de aula
+// Sin POLL, CMD ni ACK del gateway durante este plazo, el nodo repite el JOIN
+// (p. ej. tras reiniciarse el gateway). Peor caso: 3 vueltas de sondeo con la
+// tabla llena = 3 x 32 nodos x 5 s (LORALAN_POLL_MS del gateway).
+#define LORALAN_SILENCE_MS  480000UL
 
 #define LORA_FREQ_MHZ       869.525
 #define LORA_BW_KHZ         125.0

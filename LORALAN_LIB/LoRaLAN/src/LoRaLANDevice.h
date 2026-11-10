@@ -76,8 +76,8 @@ protected:
     bool sendRaw(const uint8_t* buffer, uint16_t len, const __FlashStringHelper* label);
     bool sendAck(uint8_t dstId, uint16_t seq, const uint8_t* payload = nullptr, uint8_t payloadLen = 0);
 
-    // Anti-repeticion: true si seq es nueva (y avanza lastSeq).
-    static bool acceptSeq(uint16_t seq, uint16_t& lastSeq, bool& haveSeq);
+    // Anti-repeticion: true si seq no se habia visto (y la registra).
+    static bool acceptSeq(uint16_t seq, uint16_t& lastSeq, uint64_t& seen, bool& haveSeq);
 
     PhysicalLayer& radio_;
     LoRaLANManager manager_;

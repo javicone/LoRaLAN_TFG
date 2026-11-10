@@ -135,5 +135,6 @@ bool encolarFichaje(const uint8_t* uid, uint8_t uidLen);
 bool recogerResultadoFichaje(ResultadoFichaje& resultado, String& uid);
 void publicarLecturaSensores(const BME280Data& bme, const LuzData& luz, const RadarData& radar);
 bool loraAsociado();
+uint8_t loraDireccion();   // direccion LoRaLAN actual (la pedida hasta asociarse)
 
 #endif

@@ -58,16 +58,16 @@ bool LoRaLANPacket::buildJoinRequest(
     uint8_t* buffer,
     uint8_t netId,
     uint8_t srcId,
-    uint8_t nodeType,
     uint16_t devNonce,
+    const uint8_t hwId[LORALAN_HWID_SIZE],
     uint16_t seq,
     uint16_t& totalLen
 ) {
-    uint8_t payload[3] = {
-        nodeType,
+    uint8_t payload[2 + LORALAN_HWID_SIZE] = {
         static_cast<uint8_t>((devNonce >> 8) & 0xFF),
         static_cast<uint8_t>(devNonce & 0xFF)
     };
+    memcpy(payload + 2, hwId, LORALAN_HWID_SIZE);
 
     return build(
         buffer,
@@ -93,15 +93,17 @@ bool LoRaLANPacket::buildJoinAccept(
     uint8_t assignedId,
     uint16_t devNonce,
     uint8_t status,
+    const uint8_t hwId[LORALAN_HWID_SIZE],
     uint16_t seq,
     uint16_t& totalLen
 ) {
-    uint8_t payload[4] = {
+    uint8_t payload[4 + LORALAN_HWID_SIZE] = {
         assignedId,
         static_cast<uint8_t>((devNonce >> 8) & 0xFF),
         static_cast<uint8_t>(devNonce & 0xFF),
         status
     };
+    memcpy(payload + 4, hwId, LORALAN_HWID_SIZE);
 
     return build(
         buffer,

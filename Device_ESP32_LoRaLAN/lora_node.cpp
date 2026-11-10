@@ -19,6 +19,7 @@
  *********/
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <RadioLib.h>
 #include <LoRaLAN.h>
 #include "AppProtocol.h"
@@ -92,6 +93,29 @@ void publicarLecturaSensores(const BME280Data& bme, const LuzData& luz, const Ra
   portENTER_CRITICAL(&muxLectura);
   ultimaLectura = s;
   portEXIT_CRITICAL(&muxLectura);
+}
+
+// Direccion asignada por el gateway; se guarda en NVS para volver a pedirla
+// tras un reinicio y conservar asi node-NNN y su aula en el servidor.
+static volatile uint8_t direccionActual = LORALAN_NODE_ID;
+
+static uint8_t direccionGuardada() {
+  Preferences nvs;
+  nvs.begin("loralan", true);
+  const uint8_t id = nvs.getUChar("dir", LORALAN_NODE_ID);
+  nvs.end();
+  return id;
+}
+
+static void guardarDireccion(uint8_t id) {
+  Preferences nvs;
+  nvs.begin("loralan", false);
+  nvs.putUChar("dir", id);
+  nvs.end();
+}
+
+uint8_t loraDireccion() {
+  return direccionActual;
 }
 
 bool loraAsociado() {
@@ -180,7 +204,15 @@ static bool onPollRequest(uint8_t* payload, uint8_t& len) {
 }
 
 static void onAsociado(const LoRaLANFrame&, const uint8_t*, uint8_t) {
-  Serial.println("[LoRa] Asociado al gateway");
+  const uint8_t id = nodo.getConfig().nodeId;
+  Serial.printf("[LoRa] Asociado al gateway como node-%03u\n", id);
+  // ponytail: escritura en flash dentro del hilo de radio; solo ocurre cuando
+  // la direccion cambia (en la practica, la primera vez) y el gateway no espera
+  // el ACK del JOIN_ACCEPT.
+  if (id != direccionActual) {
+    guardarDireccion(id);
+  }
+  direccionActual = id;
   relesCambiados = true;
 }
 
@@ -204,10 +236,19 @@ bool setupLoRa() {
 
   LoRaLANNode::Config cfg;
   cfg.netId = LORALAN_NET_ID;
-  cfg.nodeId = LORALAN_NODE_ID;
+  direccionActual = direccionGuardada();
+  cfg.nodeId = direccionActual;
+  // Identificador de fabrica: la MAC grabada en el eFuse del ESP32.
+  const uint64_t mac = ESP.getEfuseMac();
+  for (int i = 0; i < LORALAN_HWID_SIZE; ++i) {
+    cfg.hwId[i] = uint8_t(mac >> (8 * i));
+  }
+  Serial.printf("[LoRa] MAC %02X:%02X:%02X:%02X:%02X:%02X, pide node-%03u\n",
+                cfg.hwId[0], cfg.hwId[1], cfg.hwId[2], cfg.hwId[3], cfg.hwId[4], cfg.hwId[5],
+                direccionActual);
   cfg.gatewayId = LORALAN_GATEWAY_ID;
-  cfg.nodeType = LORALAN_NODE_TYPE;
   cfg.appKey = LORALAN_APP_KEY;
+  cfg.silenceTimeoutMs = LORALAN_SILENCE_MS;
   nodo.begin(cfg);
   nodo.setOnJoinAccepted(onAsociado);
   nodo.setOnCommand(onComando);

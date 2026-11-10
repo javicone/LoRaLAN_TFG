@@ -174,6 +174,15 @@ public:
             *outSeq = seq;
         }
 
+        // Sin ACK_REQUIRED nadie va a confirmar: se emite una sola vez, sin
+        // ocupar el TX fiable (si no, se retransmitiria hasta agotar intentos).
+        if ((flags & static_cast<uint8_t>(Flags::ACK_REQUIRED)) == 0) {
+            if (!hasSessionKey_ || !LoRaLANPacket::applyMic(buffer, len, sessionKey_)) {
+                return false;
+            }
+            return transmitWithRetry(buffer, len, label, 1, ackTimeoutMs);
+        }
+
         // sendPacket lo usa el nodo, cuyo interlocutor es siempre el gateway:
         // la clave correcta es su propia session key.
         return enqueueReliableTx(buffer, len, seq, label, maxAttempts, ackTimeoutMs,
@@ -314,9 +323,14 @@ private:
         uint8_t maxAttempts = 0;
         uint32_t ackTimeoutMs = 0;
         uint32_t lastTxMs = 0;
+        // Plazo del ACK mas una parte aleatoria, sorteada en cada emision: dos nodos que
+        // colisionan no repiten a la vez. El ACK se acepta durante toda la espera.
+        uint32_t retryAfterMs = 0;
         const __FlashStringHelper* label = nullptr;
         bool active = false;
     };
+
+    static constexpr uint32_t kRetryJitterMs = 600;   // unas 12 tramas de evento en SF7
 
     bool markPacketAsRetry(uint8_t* buffer, uint16_t& len) {
         LoRaLANFrame frame;
@@ -374,6 +388,7 @@ private:
         }
 
         pendingTx_.lastTxMs = millis();
+        pendingTx_.retryAfterMs = pendingTx_.ackTimeoutMs + static_cast<uint32_t>(random(0, kRetryJitterMs + 1));
         radio_.startReceive();
         return true;
     }
@@ -408,7 +423,7 @@ private:
             return;
         }
 
-        if (millis() - pendingTx_.lastTxMs < pendingTx_.ackTimeoutMs) {
+        if (millis() - pendingTx_.lastTxMs < pendingTx_.retryAfterMs) {
             return;
         }
 
