@@ -3,11 +3,11 @@
 Sistema de control de asistencia por tarjeta NFC para aulas, parte del TFG de Telemática
 de Javier Conejero (Universidad de Extremadura). El nodo de cada aula lee la tarjeta del
 profesor y la envía por radio, con el protocolo propio **LoRaLAN**, a un gateway en una
-Raspberry Pi; el gateway la pasa a un servidor FastAPI que registra la asistencia en MySQL
-y devuelve el resultado al nodo.
+Raspberry Pi; el gateway la pasa a un servidor FastAPI, en la misma Pi, que registra la
+asistencia en MariaDB y devuelve el resultado al nodo.
 
 ```
-ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI + MySQL <-- navegador
+ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI + MariaDB <-- navegador
 ```
 
 ## Qué contiene
@@ -17,7 +17,7 @@ ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI +
 | [`Device_ESP32_LoRaLAN/`](Device_ESP32_LoRaLAN/README.md) | Firmware del nodo de aula: NFC, sensores, relés, pantalla y LEDs |
 | [`gatewayLoRaLAN/`](gatewayLoRaLAN/README.md) | Gateway en C++ para la Raspberry Pi: puente entre la radio y el servidor |
 | [`Server/`](Server/README.md) | Servidor FastAPI y paneles web (profesor, conserje y administrador) |
-| [`Database/`](Database/README.md) | Esquema y migración de MySQL |
+| [`Database/`](Database/README.md) | Esquema y migración de la base de datos |
 | [`LORALAN_LIB/LoRaLAN/`](LORALAN_LIB/LoRaLAN/README.md) | Biblioteca del protocolo LoRaLAN |
 | [`LORALAN_LIB/sim_LoRaLAN/`](LORALAN_LIB/sim_LoRaLAN/README.md) | Simulador de PC con las pruebas del capítulo 6 |
 | [`MonitorCardputer/`](MonitorCardputer/README.md) | Monitor pasivo de la red en un M5Stack Cardputer |
@@ -40,7 +40,7 @@ ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI +
 
 - **Hardware**: ESP32 con SX1276 y PN532 para el nodo; Raspberry Pi con SX1276 a 3,3 V
   para el gateway; antenas de 868 MHz.
-- **Software**: MySQL 8, Python 3, y en la Pi `cmake`, `liblgpio-dev`, `libmbedtls-dev` y
+- **Software**: en la Pi, MariaDB, Python 3, `cmake`, `liblgpio-dev`, `libmbedtls-dev` y
   [RadioLib](https://github.com/jgromes/RadioLib) en `~/RadioLib`; Arduino IDE o
   `arduino-cli` con el core ESP32.
 
@@ -50,10 +50,9 @@ Orden: **base de datos → servidor → gateway → nodo**. Detalle y errores fr
 [arranque.md](arranque.md).
 
 ```bash
-# 1. Base de datos (PC)
-docker start control-asistencia-mysql
+# 1. Base de datos: MariaDB en la Pi, arranca sola (instalación en arranque.md)
 
-# 2. Servidor (con DB_HOST en Server/.env)
+# 2. Servidor (BD configurada en Server/.env)
 cd Server && pip install -r requirements.txt && python appFastApi.py
 
 # 3. Gateway (Raspberry Pi, SPI habilitado)
@@ -75,7 +74,7 @@ g++ -std=c++17 -I src test_airtime.cpp src/radio/airtime.cpp -o test_airtime && 
 g++ -std=c++17 -I ../Device_ESP32_LoRaLAN test_app_protocol.cpp -o test_app_protocol && ./test_app_protocol
 g++ -std=c++17 -I src -I ../Device_ESP32_LoRaLAN test_bridge.cpp src/bridge.cpp -o test_bridge && ./test_bridge
 
-# Servidor (sin MySQL)
+# Servidor (sin base de datos)
 cd Server && python -m pytest scripts/test_gateway_panel.py -q
 ```
 

@@ -19,7 +19,7 @@ async def create_user(nombre: str, correo: str, password: str, rol: str = "profe
         nombre: Nombre completo del usuario
         correo: Email (usado para login)
         password: Contraseña en texto plano (será hasheada)
-        rol: Rol del usuario (admin, profesor, conserje)
+        rol: Rol del usuario (profesor, conserje, administrador)
     """
     print(f"\n🔐 Creando usuario: {correo}")
     
@@ -52,10 +52,11 @@ async def create_user(nombre: str, correo: str, password: str, rol: str = "profe
         await close_db_pool()
 
 if __name__ == "__main__":
-    # Ejemplo de uso
-    asyncio.run(create_user(
-        nombre="Administrador",
-        correo="admin@uex.es",
-        password="Admin123!",
-        rol="admin"
-    ))
+    import argparse
+    parser = argparse.ArgumentParser(description="Crea un usuario con la contraseña en bcrypt.")
+    parser.add_argument("nombre")
+    parser.add_argument("correo")
+    parser.add_argument("password")
+    parser.add_argument("--rol", default="profesor", choices=["profesor", "conserje", "administrador"])
+    args = parser.parse_args()
+    asyncio.run(create_user(args.nombre, args.correo, args.password, args.rol))

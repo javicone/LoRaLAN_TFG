@@ -1,7 +1,7 @@
 # Database
 
-Base de datos MySQL del sistema: usuarios, aulas, clases, asistencias y dispositivos. Solo
-la usa el servidor; ni el gateway ni los nodos se conectan a ella.
+Base de datos del sistema: usuarios, aulas, clases, asistencias y dispositivos. Va en
+MariaDB, en la Raspberry Pi, junto al servidor, que es el único que la usa.
 
 ## Ficheros
 
@@ -29,14 +29,14 @@ existe para ese profesor, aula y clase.
 
 ## Uso
 
-```bash
-# Desde cero
-mysql -u root -p control-asistencia < esquema.sql
-mysql -u root -p control-asistencia < migracion_loralan.sql
+Instalación en la Pi (crear la BD y su usuario, cargar las tablas y cambiar la api_key del
+gateway): [`../arranque.md`](../arranque.md), apartado 1. Lo esencial:
 
-# BD existente
-mysql -u root -p control-asistencia < migracion_loralan.sql
+```bash
+sudo mysql control-asistencia < esquema.sql
+sudo mysql control-asistencia < migracion_loralan.sql
 ```
 
 La migración crea el gateway `gw-rpi-01` con una api_key de ejemplo: hay que cambiarla y
-poner la misma en `LORALAN_API_KEY` del gateway.
+poner la misma en `LORALAN_API_KEY` del gateway. El primer administrador se crea con
+`Server/scripts/create_user.py`.

@@ -26,7 +26,7 @@ Capas: **router** (HTTP) → **service** (lógica) → **repository** (SQL).
 | `routers/` | Endpoints; los del gateway en `gateway.py` y los de los paneles en `panel.py` |
 | `services/` | Lógica: fichaje, autenticación y estado de la red |
 | `repositories/` | Consultas SQL y cliente del webservice de horarios de la UEx |
-| `models/`, `security/`, `middleware/`, `utils/` | Modelos, bcrypt y JWT, CORS y límites, pool de MySQL |
+| `models/`, `security/`, `middleware/`, `utils/` | Modelos, bcrypt y JWT, CORS y límites, pool de conexiones a la BD |
 | `templates/`, `static/` | HTML, CSS y JS de los paneles |
 | `scripts/` | Crear usuarios, migrar contraseñas y pruebas |
 
@@ -68,7 +68,7 @@ python appFastApi.py        # http://0.0.0.0:8000
 En Windows: `$env:PYTHONUTF8=1; python appFastApi.py`. Debe ir sin TLS: el gateway no
 habla HTTPS.
 
-Pruebas sin MySQL:
+Pruebas sin base de datos:
 
 ```bash
 python -m pytest scripts/test_gateway_panel.py scripts/test_errores.py -q

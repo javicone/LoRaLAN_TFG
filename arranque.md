@@ -1,72 +1,86 @@
 # Arranque del prototipo
 
-Puesta en marcha de extremo a extremo: base de datos en el PC, servidor y gateway en la
-Raspberry Pi, y nodo ESP32.
+Puesta en marcha de extremo a extremo: base de datos, servidor y gateway en la Raspberry
+Pi, y nodo ESP32.
 
 ```
-ESP32 (nodo) --LoRa--> Raspberry Pi 192.168.1.43 [gateway LoRaLAN + FastAPI :8000]
-                                  |
-                                  +--MySQL :3306--> PC 192.168.1.138 [Docker control-asistencia-mysql]
+ESP32 (nodo) --LoRa--> Raspberry Pi 192.168.1.43 [gateway LoRaLAN + FastAPI :8000 + MariaDB :3306]
 ```
 
-La Pi es la única que habla con la BD. El gateway habla con FastAPI en local
-(`127.0.0.1:8000`) y FastAPI habla con el MySQL del PC.
+Todo corre en la Pi: el gateway habla con FastAPI en local (`127.0.0.1:8000`) y FastAPI con
+MariaDB en local.
 
-Orden de arranque: **1. BD (PC) → 2. servidor (Pi) → 3. gateway (Pi) → 4. nodo**.
+Orden de arranque: **1. BD → 2. servidor → 3. gateway → 4. nodo**. La BD (MariaDB) arranca
+sola con la Pi.
+
+Las órdenes se ejecutan desde la carpeta del repo en la Pi:
+
+```bash
+cd ~/Desktop/TFGTelem/controlAsistenciaMigrado
+git pull
+```
 
 ---
 
-## 1. PC: base de datos en Docker
+## 1. Raspberry Pi: base de datos (MariaDB)
 
-1. Abrir Docker Desktop.
-2. Arrancar el contenedor (ya existe, con la BD migrada):
-   ```powershell
-   docker start control-asistencia-mysql
-   docker ps --format "{{.Names}} {{.Status}} {{.Ports}}"
-   ```
-   Debe aparecer `0.0.0.0:3306->3306/tcp`.
-3. **Solo la primera vez:** abrir el puerto 3306 a la Raspberry en el firewall de Windows
-   (PowerShell **como administrador**):
-   ```powershell
-   New-NetFirewallRule -DisplayName "MySQL 3306 Raspberry" -Direction Inbound -Protocol TCP -LocalPort 3306 -RemoteAddress 192.168.1.43 -Action Allow -Profile Any
-   ```
-   `-Profile Any` hace que funcione aunque Windows marque la red como Pública, y
-   `-RemoteAddress` limita el acceso a la Pi.
+**Solo la primera vez.** Elegir una contraseña para el usuario de la BD y una api_key para
+el gateway (16 caracteres o más) y sustituirlas abajo.
 
-MySQL ya acepta conexiones remotas: el usuario `root@'%'` existe en el contenedor.
+1. Instalar MariaDB:
+   ```bash
+   sudo apt install -y mariadb-server
+   ```
+2. Crear la BD y su usuario:
+   ```bash
+   sudo mysql -e "CREATE DATABASE \`control-asistencia\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   sudo mysql -e "CREATE USER 'asistencia'@'localhost' IDENTIFIED BY 'CONTRASEÑA_BD';"
+   sudo mysql -e "GRANT ALL PRIVILEGES ON \`control-asistencia\`.* TO 'asistencia'@'localhost';"
+   ```
+3. Crear las tablas y dar de alta el gateway:
+   ```bash
+   sudo mysql control-asistencia < Database/esquema.sql
+   sudo mysql control-asistencia < Database/migracion_loralan.sql
+   sudo mysql control-asistencia -e "UPDATE nodos SET api_key='API_KEY_GATEWAY' WHERE device_id='gw-rpi-01';"
+   ```
+4. Comprobar que el usuario entra por TCP, igual que el servidor (pide la contraseña):
+   ```bash
+   mysql -h localhost --protocol=TCP -u asistencia -p control-asistencia -e "SELECT device_id FROM nodos;"
+   ```
+   Debe listar `gw-rpi-01`.
+
+Después, poner la misma api_key en `gatewayLoRaLAN/gateway.env`
+(`LORALAN_API_KEY=API_KEY_GATEWAY`).
 
 ---
 
 ## 2. Raspberry Pi: servidor FastAPI
 
-```bash
-cd ~/Desktop/TFGTelem/controlAsistenciaMigrado/Server
-git pull
-```
-
 **Solo la primera vez:**
 
 ```bash
+cd Server
 sudo apt install -y python3-venv
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-En `Server/.env`, apuntar la BD al PC:
+En `Server/.env`, la BD local:
 
 ```
-DB_HOST=192.168.1.138
-DB_PORT=3306
+DB_HOST=localhost
+DB_USER=asistencia
+DB_PASSWORD=CONTRASEÑA_BD
+DB_NAME=control-asistencia
 ```
 
-Comprobar que la Pi llega al MySQL del PC:
+Crear el primer administrador (el resto de usuarios, aulas y clases se crean después
+desde `/gestion-datos`):
 
 ```bash
-nc -zv 192.168.1.138 3306       # debe decir "succeeded" / "open"
+python scripts/create_user.py "Administrador" admin@uex.es 'CONTRASEÑA_ADMIN' --rol administrador
 ```
-
-Si da timeout, el problema es el firewall de Windows (paso 1.3).
 
 **Arrancar** (en su propia terminal, y dejarla abierta):
 
@@ -90,10 +104,6 @@ curl -s -X POST http://127.0.0.1:8000/auth/device -H 'Content-Type: application/
 ```
 
 Si devuelve un `access_token`, el servidor está bien y lee la BD.
-
-> En Windows (si se arranca el servidor en el PC) hay que lanzarlo con
-> `$env:PYTHONUTF8=1; python appFastApi.py`: sin eso se cae al imprimir los emojis del
-> log en la consola.
 
 ---
 
