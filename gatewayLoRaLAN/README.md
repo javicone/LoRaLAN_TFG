@@ -43,7 +43,7 @@ nodo y gateway compartan una sola definición de los mensajes.
 
 ### 1. La biblioteca LoRaLAN se compila sin modificar
 
-La biblioteca del protocolo (`IMPLEMENTACIONMIA/libraries/LoRaLAN/src`) está escrita
+La biblioteca del protocolo (en este repo, `LORALAN_LIB/LoRaLAN/src`) está escrita
 para Arduino y hace `#include <Arduino.h>`. En vez de modificarla, `src/compat/`
 proporciona un `Arduino.h` propio con lo que la biblioteca usa:
 
@@ -53,7 +53,9 @@ proporciona un `Arduino.h` propio con lo que la biblioteca usa:
 - `F()` como un simple cast, y un `Serial` que escribe en stdout con marca de tiempo.
 
 El `CMakeLists.txt` pone `src/compat` **el primero** en la ruta de includes para que
-`<Arduino.h>` se resuelva ahí. La radio la maneja RadioLib con su HAL oficial para
+`<Arduino.h>` se resuelva ahí. La ruta de la biblioteca es `LORALAN_DIR`: por defecto
+`../../IMPLEMENTACIONMIA/libraries/LoRaLAN/src` (la carpeta de trabajo del autor); con
+solo este repo se pasa `-DLORALAN_DIR=<repo>/LORALAN_LIB/LoRaLAN/src`. La radio la maneja RadioLib con su HAL oficial para
 Raspberry Pi (`PiHal`, sobre `lgpio`). También exige `libmbedtls-dev`: sin ella la
 biblioteca compilaría pero **sin cifrar** el payload, y por eso CMake aborta.
 

@@ -1,224 +1,288 @@
-# LoRaLAN: Protocolo LPLAN Optimizado para Redes Locales
+# LoRaLAN
 
-LoRaLAN es un protocolo de comunicaciones de red de area local inalambrica basado en la capa fisica (PHY) de LoRa.
+Biblioteca Arduino/C++ que implementa **LoRaLAN**, un protocolo de red local sobre la
+capa física LoRa: una red en estrella con un gateway y varios nodos, con asociación,
+sondeo periódico, eventos asíncronos, comandos, acuses de recibo y seguridad
+(cifrado AES-128-CTR y MIC AES-CMAC). Está escrita sobre
+[RadioLib](https://github.com/jgromes/RadioLib) y funciona con cualquier radio que
+implemente su `PhysicalLayer` (en este proyecto, SX1276 en el nodo y en el gateway).
 
-Ha sido disenado como parte de un Trabajo de Fin de Grado (TFG) en Ingenieria de Telecomunicaciones / Telematica para ofrecer una alternativa determinista, de baja latencia y alta seguridad frente a implementaciones estandar como LoRaWAN, ideal para entornos de campus, edificios inteligentes y redes privadas.
+La misma biblioteca, sin modificar, se compila para ESP32 (nodo) y para Linux en la
+Raspberry Pi (gateway, ver `gatewayLoRaLAN/`), que le proporciona su propio `Arduino.h`.
 
-## Tabla de Contenidos
+---
 
-- [Justificacion y Objetivos](#justificacion-y-objetivos)
-- [Arquitectura del Sistema](#arquitectura-del-sistema)
-- [Capa de Enlace y Acceso al Medio (MAC)](#capa-de-enlace-y-acceso-al-medio-mac)
-- [Estructura de la Trama](#estructura-de-la-trama)
-- [Ciberseguridad y Criptografia](#ciberseguridad-y-criptografia)
-- [Implementacion y Hardware](#implementacion-y-hardware)
+## Ficheros
 
-## Justificacion y Objetivos
+| Fichero | Qué contiene |
+|---|---|
+| `LoRaLAN.h` | Cabecera única que incluye todo lo demás |
+| `LoRaLANPacket.h` | Tipos de mensaje, prioridades, flags, cabecera y constructores de tramas |
+| `LoRaLANPacketCore.cpp` | `build()` y `parse()`: serialización y validación estructural de la trama |
+| `LoRaLANPacketBuilders.cpp` | Constructores de ACK, POLL, JOIN_REQUEST, JOIN_ACCEPT y TIME_SYNC |
+| `LoRaLANPacketMic.cpp` | `applyMic()` y `checkMic()`: cálculo y verificación del MIC |
+| `LoRaLANPacketInternal.h` | Empaquetado de la cabecera de 7 bytes |
+| `LoRaLANCrypto.h` | AES-128-CTR, CMAC-AES-128, derivación de la clave de sesión y nonce (sobre mbedTLS) |
+| `LoRaLANManager.h` | Cifrado de tramas, número de secuencia, envío fiable con espera de ACK y reintentos |
+| `LoRaLANDevice.h/.cpp` | Base común de gateway y nodo: recepción, autenticación, ACK automático, CAD y anti-repetición |
+| `LoRaLANGateway.h/.cpp` | Rol gateway: tabla de nodos, JOIN, POLL, TIME_SYNC, PUSH con ACK diferido y CMD |
+| `LoRaLANNode.h/.cpp` | Rol nodo: JOIN, PUSH con CAD, respuesta al POLL, CMD, TIME_SYNC, LEAVE |
 
-Mientras que LoRaWAN sobresale en despliegues metropolitanos (esquema ALOHA, alta latencia, escalabilidad masiva), presenta deficiencias en entornos locales donde se requiere determinismo temporal y baja latencia (por ejemplo, sistemas de control de acceso o fichaje en tiempo real).
+---
 
-LoRaLAN resuelve esto mediante:
+## Cómo funciona
 
-- Una topologia en estrella centralizada (Single-Gateway / Multi-Node).
-- Un esquema MAC hibrido que combina multiplexacion por division de tiempo (TDM) para gestion rutinaria y deteccion de actividad de canal (CAD) para eventos asincronos criticos.
-- Una carga util fragmentada de hasta 64 bytes para mantener el Time on Air (ToA) por debajo de los ~100 ms, minimizando la probabilidad de colision.
+### Direcciones
 
-## Arquitectura del Sistema
+Cada red tiene un `netId` (1 byte). El gateway tiene su propia dirección (`gatewayId`,
+`0x00` en este proyecto) y `0xFF` es difusión. Los nodos usan:
 
-El ecosistema LoRaLAN adopta un modelo de responsabilidades separadas para garantizar el rendimiento en tiempo real estricto (hard real-time):
+- **`0x01`–`0x7F`**: direcciones manuales, configuradas en el nodo.
+- **`0x80`–`0xFE`**: direcciones dinámicas, que el gateway reparte de arriba abajo.
 
-- **Nodos (End-Devices):** Basados en microcontroladores de bajo consumo unidos a transceptores LoRa (ej. SX1276). Gestionan sensores, cifrado local y acceso al medio.
+El gateway admite hasta **32 nodos** (`LoRaLANGateway::kMaxNodes`).
 
-- **Gateway (Smart Bridge):** Implementado sobre una arquitectura Dual-Core (ESP32). Actua exclusivamente como puente traductor de Capa 2 (LoRa) a Capa 4/7 (TCP/WebSockets).
-Aquí la idea es que el gateway sea un esp32 y que actúe de gateway en uno de sus cores y de puente conectado mediante ethernet o WiFi a internet para tener acceso al servidor o a donde sea que se envíen los datos. El puente deberá estar preparado para enviar paquetes MQTT, IP, WEBSOCKET. Según esté configurado.
+### Asociación (JOIN)
 
-- **Servidor Central:** Desplegado en hardware externo (Raspberry Pi, servidor local o cloud). Se comporta coomo un servidor normal. En nuestra implementación se comunicaba con los nodos por HTTP (información asíncrona como los fichajes y actuadores) y por WEBSOCKET (para la información en tiempo real)
+1. El nodo envía un `JOIN_REQUEST` a difusión con un `DevNonce` aleatorio de 16 bits,
+   su identificador de fábrica (`hwId`, 6 bytes; en el ESP32 es la MAC) y como origen la
+   dirección que prefiere (`0` = cualquiera). Antes escucha el canal (CAD).
+2. El gateway busca el nodo por su `hwId`. Si es nuevo, le asigna la dirección pedida si
+   está libre, o la dinámica libre más alta. Un nodo conocido conserva la suya mientras
+   el gateway siga en marcha.
+3. Ambos derivan la misma **clave de sesión**:
+   `AES-CMAC(APPKEY, "LLK" | netId | dirección | DevNonce)`.
+4. El gateway responde con `JOIN_ACCEPT` (dirección asignada, `DevNonce`, estado y
+   `hwId`). El nodo comprueba que el `DevNonce` y el `hwId` son los suyos, adopta la
+   dirección, deriva la clave y confirma con un ACK.
 
-## Capa de Enlace y Acceso al Medio (MAC)
+Si no lo consigue, el nodo repite el JOIN cada `joinRetryMs` (5 s por defecto) más una
+parte aleatoria de hasta un cuarto de ese intervalo. Si deja de oír al gateway durante
+`silenceTimeoutMs` (desactivado por defecto), da la sesión por perdida y vuelve a
+asociarse. Con `leave()` el nodo envía un `LEAVE` y se da de baja.
 
-El protocolo abandona el esquema ALOHA puro en favor de un sistema de prioridades y control de acceso hibrido.
+### Sondeo (POLL)
 
-### Gestion de Colisiones y Modos de Transmision
+El gateway envía un `POLL` a un nodo asociado cada `pollIntervalMs`, por turnos. El nodo
+responde con un `POLL_RESPONSE` que lleva el payload encolado con `queuePollPayload()` o,
+si no hay ninguno, el que genere el callback `setOnPollRequest()` (puede ir vacío).
+Si un nodo no envía nada durante `maxMissedPolls` sondeos seguidos (3 por defecto), el
+gateway lo marca inactivo y avisa con `setOnNodeInactive()`; cualquier trama posterior
+lo reactiva.
 
-- **Modo POLL (TDM estricto):** El Gateway asigna ventanas de tiempo. Un nodo solo puede transmitir metricas rutinarias o heartbeats cuando recibe una peticion directa (Poll). Se soporta piggybacking para incluir datos pendientes en el acuse de recibo. El modo poll se podrá configurar para cambiar la frecuencia del poll, lo cual permite gestionar el TOA para no exceder el duty cycle permitido del 10% en la banda que estamos usando, la 869.5 MHz. Se debe adelantar unos ms el reloj en las tramas beacons para (DRIFT).
+### Eventos (PUSH)
 
-	Si en su ventan de poll un nodo no contesta se detectará que está inactivo. Sirve como Keep-alive.
+El nodo envía un `PUSH_EVENT` con `queuePushEvent()` sin esperar a ser sondeado. Antes
+de transmitir escucha el canal (CAD); si está ocupado espera
+`baseBackoffMs · 2^n` (con `n` hasta `maxBackoffExp`) más un margen aleatorio de hasta
+`jitterMs`, y desiste tras `maxAttempts` escuchas fallidas. Con `fallbackToPoll`, un
+evento que no se entrega se reenvía en la siguiente respuesta a un POLL.
 
-- **Modo PUSH (asincrono con CAD):** Para eventos criticos (ej. fichaje de un usuario). El nodo verifica si el canal esta libre mediante Channel Activity Detection (CAD). Esta logica esta implementada y requiere validacion de campo con SX1276.
+### Acuses de recibo y reintentos
 
-	- Si el canal esta ocupado: aplica un algoritmo de backoff exponencial aleatorio.
-	- Si hay conflicto de transmision simultanea entre Gateway y Nodo, el Gateway tiene prioridad absoluta. y  los nodos se ponen a escuchar.
-	- En caso de que el nodo o el gateway no respondan con ACK, se realiza el backoff exponencial con reintento N veces. Si no hay exito, el paquete se encola para poder enviarse en un poll. 
+Las tramas con el flag `ACK_REQUIRED` se confirman con un `ACK` que lleva la misma
+secuencia. Lo llevan PUSH, CMD, LEAVE, JOIN_ACCEPT y las POLL_RESPONSE que lo piden.
+En PUSH, POLL_RESPONSE, CMD y LEAVE, quien envía espera `appAckTimeoutMs` (1200 ms por
+defecto) más un margen aleatorio de hasta 600 ms, y reintenta hasta `appMaxRetries`
+veces (3), marcando la trama con el flag `IS_RETRY`. Solo hay un envío de este tipo en
+curso a la vez.
+El nodo conoce el desenlace de cada PUSH con `setOnPushAck()`.
 
-	- Los dispositivos deberían de estar disponibles en todo momento para recepción y emision de PUSH, salvo cuando trasmiten. 
+El ACK puede llevar un **payload corto de aplicación**. Con `deferredPushAck = true`, el
+gateway no responde el PUSH automáticamente: la aplicación lo hace con `ackPush()` cuando
+tiene la respuesta (en este proyecto, el resultado del fichaje que devuelve el servidor).
+Si el nodo retransmite porque perdió el ACK, el gateway le reenvía la misma respuesta
+guardada sin entregar el evento dos veces a la aplicación.
 
-### Sincronizacion
+### Comandos (CMD) y hora (TIME_SYNC)
 
-El Gateway emite tramas de tipo BEACON cada 60 (o mas) segundos dirigidas a la direccion de broadcast (0xFF). Estas tramas incluyen un timestamp y corrigen la desviacion de reloj (drift) de los osciladores de cristal de los nodos. En las ventanas de transmisión los nodos deben empezar a escuchar un poco antes de que se les otorge su slot de tiempo para escuchar ya que LoRa cuando emite paquete al principio envía un preambulo. Si no se detecta el preambulo entero, los trasnmisores no escuchan ese paquete como tal.
+- `sendCommand()` envía al nodo un `CMD` cifrado con su clave de sesión, con ACK y
+  reintentos. El nodo lo recibe en `setOnCommand()`.
+- Cada `timeSyncIntervalMs` (30 s por defecto) el gateway difunde un `TIME_SYNC` con su
+  reloj (`millis()/1000`, en segundos); el nodo guarda la diferencia en `timeOffsetMs()`.
 
-- -	1 beacon por minuto son 60 beacons por hora a 35 ms por beacon son 2,1s/h o 0.58% de duty cycle.
+---
 
-### Prioridades de Trafico
+## Formato de la trama
 
-- **Prioridad Alta (2):** PUSH_EVENT, ACK y CMD.
-- **Prioridad Media (1):** TIME_SYNC (beacon), JOIN_REQUEST, JOIN_ACCEPT y LEAVE.
-- **Prioridad Baja (0):** POLL y POLL_RESPONSE.
+```
+| cabecera (7 B) | payload (0–64 B) | MIC (4 B) |
+```
 
-El valor 3 queda reservado y se rechaza. Actualmente la prioridad viaja en la trama pero no altera el orden de transmision.
+| Byte | Campo | Contenido |
+|---|---|---|
+| 0 | Control | versión (2 bits) · tipo (4 bits) · prioridad (2 bits) |
+| 1 | Flags | `0x01` ACK_REQUIRED, `0x02` IS_RETRY |
+| 2 | netId | Identificador de red |
+| 3 | srcId | Dirección de origen |
+| 4 | dstId | Dirección de destino (`0xFF` = difusión) |
+| 5–6 | seq | Número de secuencia de 16 bits, little-endian |
 
-## Estructura de la Trama
+La longitud del payload no viaja en la cabecera: la da la cabecera explícita de LoRa y
+se deduce de la longitud total recibida. Una trama ocupa entre 11 y 75 bytes.
 
-La cabecera ocupa **7 bytes** en el aire. Version, tipo y prioridad van empaquetados en el byte 0.
+| Tipo | Código | Prioridad | Payload | Cifrado |
+|---|---|---|---|---|
+| PUSH_EVENT | `0x01` | alta | datos de aplicación | sí |
+| ACK | `0x02` | alta | respuesta corta de aplicación (opcional) | no |
+| POLL | `0x03` | baja | vacío | — |
+| POLL_RESPONSE | `0x04` | baja | datos de aplicación (opcional) | sí |
+| TIME_SYNC | `0x06` | media | hora del gateway (4 B, segundos) | no |
+| JOIN_REQUEST | `0x07` | media | DevNonce (2 B) + hwId (6 B) | no |
+| JOIN_ACCEPT | `0x08` | media | dirección + DevNonce + estado + hwId | no |
+| LEAVE | `0x09` | media | vacío | — |
+| CMD | `0x0A` | alta | comando de aplicación | sí |
 
-| Byte | Bits | Campo | Descripcion / Funcion |
-| --- | --- | --- | --- |
-| 0 | 7-6 | Version | Version del protocolo (2 bits: actual 1, maximo 4 versiones). |
-| 0 | 5-2 | Tipo | Tipo de mensaje (4 bits: maximo 16 tipos, usados 9: 0x01-0x0A salvo 0x05, reservado). |
-| 0 | 1-0 | Prioridad | 2 bits: 0 baja, 1 media, 2 alta; 3 reservado. |
-| 1 | 8 | Flags | ACK_REQUIRED 0x01, IS_RETRY 0x02; el resto de bits reservados (se rechazan). |
-| 2 | 8 | Network ID | Identificador de la subred (0-255). Aisla colisiones logicas entre redes cercanas. |
-| 3 | 8 | ID Origen | Direccion del emisor. El Gateway siempre es 0x00. |
-| 4 | 8 | ID Destino | Direccion del receptor. Broadcast es 0xFF. |
-| 5 | 8 | SEQ | Numero de secuencia (0-255). Control de duplicados y anti-replay. |
-| 6 | 8 | Payload Len | Longitud del payload (0-64). |
-| 7.. | | Payload | 0-64 bytes, cifrado con AES-128-CTR. |
-| final | | MIC | 4 bytes: AES-CMAC truncado sobre cabecera + payload cifrado. |
+`parse()` rechaza las tramas con otra versión, un tipo desconocido, una prioridad
+reservada o flags desconocidos.
 
-Trama total: de 11 a 75 bytes.
+---
 
-En memoria, `struct LoRaLANHeader` guarda cada campo en su propio `uint8_t` (9 bytes) por comodidad, pero `serializeHeader` empaqueta version, tipo y prioridad con desplazamientos de bits al transmitir: `byte0 = (version << 6) | (tipo << 2) | prioridad`. Ejemplo: PUSH_EVENT (0x01), version 1, prioridad alta (2) → `0x46`.
+## Seguridad
 
+- **Claves**: una clave maestra `APPKEY` de 128 bits compartida por el gateway y los
+  nodos, y una clave de sesión por nodo derivada en cada JOIN.
+- **MIC**: los 4 últimos bytes son un CMAC-AES-128 truncado sobre cabecera y payload.
+  Las tramas JOIN y las de difusión se firman con la `APPKEY`; el resto, con la clave de
+  sesión del nodo. El receptor verifica el MIC antes de descifrar o de tocar ningún
+  estado, y compara en tiempo constante.
+- **Cifrado**: el payload de PUSH_EVENT, POLL_RESPONSE y CMD va cifrado con AES-128-CTR,
+  con la clave de sesión y un nonce formado por `netId`, `srcId` y `seq`.
+- **Anti-repetición**: cada receptor guarda la última secuencia aceptada y un mapa de
+  las 64 anteriores. Se acepta una secuencia nueva hasta media escala por delante, o una
+  anterior aún no vista dentro de esas 64. Una trama repetida no se entrega a la
+  aplicación, pero se vuelve a confirmar para que el emisor deje de reintentar. El gateway
+  lo aplica a PUSH y POLL_RESPONSE de cada nodo, y el nodo a POLL y CMD del gateway.
+  Cada JOIN reinicia la ventana.
+- **Fallo en cerrado**: sin mbedTLS no hay CMAC ni AES; las funciones devuelven `false`
+  y no se forma sesión ni se emiten tramas. En el ESP32 mbedTLS viene con el core; en
+  Linux hace falta `libmbedtls-dev`.
 
-## Ciberseguridad y Criptografia
+### Limitaciones conocidas
 
-El protocolo asume que el canal inalambrico es inherentemente hostil, garantizando confidencialidad, integridad y autenticidad.
+- Si se compromete la `APPKEY`, se compromete toda la red: con ella se derivan todas las
+  claves de sesión y se firman las tramas de difusión.
+- Un `TIME_SYNC` lo puede falsificar cualquiera que tenga la `APPKEY`, por ejemplo un
+  nodo comprometido.
+- El gateway solo rechaza el **último** `DevNonce` de cada nodo. Un `JOIN_REQUEST`
+  antiguo reinyectado vuelve a derivar aquella clave de sesión y reinicia la ventana de
+  secuencias.
+- La secuencia es de 16 bits. Pasada media escala, una trama capturada vuelve a parecer
+  nueva, así que la clave de sesión debe renovarse (un nuevo JOIN) antes de llegar ahí.
+- La tabla de nodos del gateway vive en RAM: si el gateway se reinicia, los nodos tienen
+  que volver a asociarse (lo hacen solos con `silenceTimeoutMs`).
 
-- **Cifrado de flujo (AES-128-CTR):** Se cifra unicamente el payload. El modo CTR (Counter) no anade padding, manteniendo el tamano de la trama intacto y reduciendo la latencia de procesamiento.
+---
 
-- **Integridad (Encrypt-then-MAC):** Antes de descifrar, el receptor verifica el MIC. Si la firma criptografica no coincide, la trama se descarta inmediatamente, protegiendo al sistema de ataques de denegacion de servicio (DoS) por agotamiento de CPU.
+## Configuración
 
-**Autenticacion (Join Process) - IMPLEMENTADO**
-Basado en una clave precompartida maestra (APPKEY 128 bits) entre gateways y nodos a partir de la cual se crea una clave de sesion por nodo.
-	- El nodo envia un JOIN_REQUEST con un numero aleatorio (DevNonce) además de un ID genérico y su dirección MAC.
-	- El Gateway verifica el MIC y ejecuta una Funcion de Derivacion de Claves (KDF).
-	- Se genera una SessionKey unica y temporal por nodo con un coste de acceso en memoria de $O(1)$. Esto supone al gateway un coste de 4KB en memoria, lo cual no es mucho y nos permite tener un array que sea: 
-     **arrayNodos[id_nodo] = sessionKey_nodo_id**
-    Además, se le asigna a los nodos un id. Por lo que es como si estuvieramos haciendo un mini DHCP. Lo malo es que si se compromete la appkey se compromete la seguridad de toda la red.
+Valores por defecto de la biblioteca:
 
-	- Podríamos hacer un mecanismo hibrido que posea direccionamiento dinámico y direccionamiento estático pero aumentaría la complejidad y quizá no merezca la pena.
+| Parámetro | Por defecto | Rol | Uso |
+|---|---|---|---|
+| `netId` | 0 | ambos | Identificador de red |
+| `appKey` | — | ambos | Clave maestra de 16 bytes (obligatoria) |
+| `appMaxRetries` | 3 | ambos | Reintentos por falta de ACK |
+| `appAckTimeoutMs` | 1200 | ambos | Espera del ACK |
+| `txMaxRetries` | 3 | ambos | Reintentos de radio de las tramas sin espera de ACK (POLL, ACK, JOIN, TIME_SYNC) |
+| `txTimeoutMs` | 2500 | ambos | Plazo total de esos reintentos |
+| `gatewayId` | 0 | ambos | Dirección del gateway |
+| `pollIntervalMs` | 2000 | gateway | Intervalo de sondeo (0 = sin POLL) |
+| `timeSyncIntervalMs` | 30000 | gateway | Intervalo de TIME_SYNC (0 = sin TIME_SYNC) |
+| `deferredPushAck` | false | gateway | La aplicación responde los PUSH con `ackPush()` |
+| `maxMissedPolls` | 3 | gateway | Sondeos sin respuesta para marcar un nodo inactivo (0 = no detectar) |
+| `nodeId` | 0 | nodo | Dirección preferida (0 = cualquiera) |
+| `hwId` | — | nodo | Identificador de fábrica único, 6 bytes |
+| `joinRetryMs` | 5000 | nodo | Intervalo de reintento del JOIN (0 = sin JOIN automático) |
+| `silenceTimeoutMs` | 0 | nodo | Silencio del gateway tras el que se repite el JOIN (0 = desactivado) |
+| `cad` | ver `CadConfig` | nodo | Escucha previa y backoff de PUSH y JOIN |
 
-- **Anti-Replay:** El campo SEQ (1 byte) va en la cabecera y esta cubierto por el MIC, asi que no se puede alterar. El gateway acepta una trama de un nodo solo si su SEQ esta entre 1 y 64 por delante del ultimo aceptado (`acceptSeq`, `LoRaLANDevice.cpp`); el duplicado exacto y los valores lejanos se descartan. Un JOIN nuevo reinicia la ventana.
+**Ciclo de trabajo.** La biblioteca no limita el tiempo en el aire; lo hace la
+aplicación. El `pollIntervalMs` de 2000 ms por defecto excede el 1 % en SF7, por lo que
+el gateway de este proyecto trabaja en 869,525 MHz (sub-banda del 10 %), sondea cada
+5000 ms y comprueba el ciclo de trabajo al arrancar (`gatewayLoRaLAN/src/main.cpp`).
 
-### Limitaciones conocidas del anti-replay
+---
 
-Son decisiones conscientes para un entorno controlado; no estan corregidas en la version actual.
+## Uso
 
-1. **Vuelta del SEQ.** Cada nodo gasta un SEQ por trama que envia (respuesta a cada POLL y cada fichaje). Con 8 bits, el contador da la vuelta cada ~256 tramas, es decir, cada ~256·X min con un POLL cada X min:
+La aplicación crea la radio con RadioLib, entrega a la biblioteca cada trama recibida
+con `handleReceived()` y llama a `process()` en cada vuelta del bucle. Recortado del
+gateway (`gatewayLoRaLAN/src/main.cpp`) y del nodo (`Device_ESP32_LoRaLAN/lora_node.cpp`)
+de este proyecto:
 
-   | POLL cada | Vuelta del SEQ |
-   |---|---|
-   | 5 min | ~21 h |
-   | 15 min | ~2,7 dias |
-   | 30 min | ~5 dias |
-
-   Tras la vuelta, una trama grabada con un SDR vuelve a caer en la ventana durante 64 tramas y, como su MIC sigue siendo valido (misma clave de sesion), el gateway la acepta. El riesgo concreto es repetir un fichaje de un profesor en otra clase suya en ese aula.
-
-   De paso, la misma clave con el mismo SEQ reutiliza el nonce de AES-CTR. El impacto es bajo: el UID de una tarjeta MIFARE no es secreto (lo lee cualquier lector NFC) y el CMAC no usa nonce, asi que no permite falsificar tramas.
-
-2. **JOIN antiguo.** El gateway solo rechaza el *ultimo* DevNonce de cada nodo (`LoRaLANGateway::onJoinRequest`). Si se reinyecta un JOIN_REQUEST anterior, el gateway vuelve a derivar aquella clave de sesion y reinicia la ventana, con lo que las tramas grabadas en esa sesion vuelven a ser validas de inmediato.
-
-3. **Comandos hacia el nodo.** El nodo no aplica la ventana de SEQ a lo que le llega del gateway (`LoRaLANNode::onCommand`), asi que un CMD de rele o de reset grabado se puede repetir en cualquier momento de la sesion.
-
-**Mitigacion propuesta (no implementada):**
-- Re-JOIN desde el nodo antes de que su SEQ de la vuelta (p. ej. a las ~192 tramas): clave nueva, y lo grabado deja de valer. Cuesta un JOIN cada varios dias.
-- DevNonce creciente en lugar de aleatorio, guardado en NVS en el nodo y en un fichero en el gateway, aceptando solo valores mayores que el ultimo.
-- Ventana de SEQ tambien en el nodo para las tramas del gateway.
-- Alternativa: un contador implicito de 32 bits en el nonce y en el MIC, del que solo viaja el byte bajo (como el FCnt de LoRaWAN). No cambia el formato ni el ToA.
-
-**Sobre el ToA:** alargar el SEQ a 4 bytes en el aire cuesta unos +5 ms por trama con SF7/BW125/CR4/5 (la trama de sensores pasa de ~56,6 a ~61,7 ms). Con un POLL cada varios minutos es despreciable para el ciclo de trabajo.
-
-**Futuro (no implementado):** Se puede estudiar un JOIN con intercambio de claves (p. ej. Diffie-Hellman) para eliminar la dependencia total de la APPKEY. Esto no forma parte de la libreria actual.
-
-## Implementacion y Hardware
-
-La libreria incluye una capa de protocolo lista para usar en modo gateway y nodo mediante la clase `LoRaLANProtocol`, con JOIN, POLL, PUSH con CAD, y TIME_SYNC.
-
-### Configuracion disponible en la libreria
-
-- Rol y direccionamiento: `beginGateway`, `beginNode`, `begin(Role, ...)`, `netId`, `gatewayId`, `nodeId`, `nodeType`.
-- JOIN: `setJoinRetryMs`, `requestJoin`, `resetJoin`, `setAppKey`.
-- POLL y TIME_SYNC: `setPollIntervalMs`, `setTimeSyncIntervalMs`.
-- Retransmision: `setTxRetryPolicy`, `setAppRetryPolicy`.
-- CAD: `setCadPolicy` (habilitar/deshabilitar, backoff base, max exp, jitter, backoff por error, CAD en JOIN).
-
-### Ejemplos rapidos de uso
-
-**Gateway (ESP32 + SX1276)**
+**Gateway**
 
 ```cpp
 #include <RadioLib.h>
 #include <LoRaLAN.h>
 
-SX1276 radio = new Module(15, 4, 13, RADIOLIB_NC);
-LoRaLANProtocol protocol(radio);
+LoRaLANGateway gateway(radio);              // radio: SX1276 de RadioLib ya inicializada
 
-const uint8_t APPKEY[16] = {0x42,0x19,0xA7,0x5C,0xD3,0x88,0x11,0xE4,0x2F,0x90,0x6A,0xC1,0x7B,0x54,0x0D,0xBE};
+void onPushEvent(const LoRaLANFrame& frame, const uint8_t* payload, uint8_t len) {
+    // ... procesar el evento y responder dentro del ACK:
+    uint8_t resultado = 0;
+    gateway.ackPush(frame.header.srcId, frame.header.seq, &resultado, 1);
+}
 
 void setup() {
-	// ... inicializa radio ...
-	LoRaLANProtocol::GatewayConfig cfg;
-	cfg.netId = 0x42;
-	cfg.gatewayId = 0x00;
-	cfg.appKey = APPKEY;
-	protocol.begin(LoRaLANProtocol::Role::GATEWAY, &cfg, nullptr);
-	protocol.setPollIntervalMs(2000);
-	protocol.setTimeSyncIntervalMs(30000);
+    LoRaLANGateway::Config cfg;
+    cfg.netId = 0x42;
+    cfg.gatewayId = 0x00;
+    cfg.appKey = APP_KEY;                   // uint8_t[16]
+    cfg.pollIntervalMs = 5000;
+    cfg.deferredPushAck = true;
+    gateway.begin(cfg);
+    gateway.setOnPushEvent(onPushEvent);
+    radio.startReceive();
 }
 
 void loop() {
-	// ... leer buffer de radio ...
-	// protocol.handleReceived(buffer, len);
-	protocol.process();
+    gateway.process();
+    if (radio.checkIrq(RADIOLIB_IRQ_RX_DONE) == 1) {
+        uint8_t buf[LORALAN_HEADER_SIZE + LORALAN_MAX_PAYLOAD + LORALAN_MIC_SIZE];
+        size_t len = radio.getPacketLength();
+        if (len > 0 && len <= sizeof(buf) && radio.readData(buf, len) == RADIOLIB_ERR_NONE) {
+            gateway.handleReceived(buf, len);
+        }
+        radio.startReceive();
+    }
 }
 ```
 
-**Nodo (ESP32 + SX1276)**
+**Nodo**
 
 ```cpp
 #include <RadioLib.h>
 #include <LoRaLAN.h>
 
-SX1276 radio = new Module(15, 4, 13, RADIOLIB_NC);
-LoRaLANProtocol protocol(radio);
+LoRaLANNode nodo(radio);
 
-const uint8_t APPKEY[16] = {0x42,0x19,0xA7,0x5C,0xD3,0x88,0x11,0xE4,0x2F,0x90,0x6A,0xC1,0x7B,0x54,0x0D,0xBE};
+void onPushAck(bool entregado, const uint8_t* ack, uint8_t ackLen) {
+    // entregado = llegó el ACK; ack = respuesta de la aplicación del gateway
+}
 
 void setup() {
-	// ... inicializa radio ...
-	LoRaLANProtocol::NodeConfig cfg;
-	cfg.netId = 0x42;
-	cfg.nodeId = 0x10;
-	cfg.gatewayId = 0x00;
-	cfg.nodeType = 0x01;
-	cfg.appKey = APPKEY;
-	protocol.begin(LoRaLANProtocol::Role::NODE, nullptr, &cfg);
-	protocol.setJoinRetryMs(5000);
-	protocol.setCadPolicy(true, 40, 5, 50, 60, true);
+    LoRaLANNode::Config cfg;
+    cfg.netId = 0x42;
+    cfg.nodeId = 0;                         // dirección dinámica
+    cfg.gatewayId = 0x00;
+    cfg.appKey = APP_KEY;
+    // cfg.hwId = MAC del ESP32 (ESP.getEfuseMac())
+    nodo.begin(cfg);
+    nodo.setOnPushAck(onPushAck);
+    radio.startReceive();
 }
 
 void loop() {
-	// ... leer buffer de radio ...
-	// protocol.handleReceived(buffer, len);
-	protocol.process();
-	if (protocol.isJoined()) {
-		uint8_t payload[] = {0x01, 0x02};
-		protocol.queuePushEvent(payload, sizeof(payload), true);
-	}
+    // recepción igual que en el gateway, con nodo.handleReceived(buf, len)
+    nodo.process();
+    if (nodo.isJoined()) {
+        // nodo.queuePushEvent(datos, len);  // evento asíncrono con ACK
+    }
 }
 ```
 
-### Gateway Dual-Core (FreeRTOS)
-
-- **Core 1 (LoRaLAN Engine):** Dedicacion exclusiva a la interrupcion de radio LoRa, temporizadores TDM por hardware, calculo criptografico AES por aceleracion hardware y enrutamiento L2.
-- **Core 0 (CommBridge Engine):** Gestion del stack TCP/IP, WiFi/Ethernet LwIP y cliente de WebSockets.
-
+En el SX1276 la recepción se comprueba con `checkIrq(RADIOLIB_IRQ_RX_DONE)` antes de
+leer: el registro de longitud conserva la del último paquete y, sin esa comprobación, se
+volvería a entregar la misma trama en cada vuelta.

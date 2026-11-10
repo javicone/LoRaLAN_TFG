@@ -123,8 +123,9 @@ cmake -DRADIOLIB_DIR=$HOME/RadioLib ..
 make -j4 gatewayLoRaLAN
 ```
 
-- La biblioteca LoRaLAN se toma del propio repo (`IMPLEMENTACIONMIA/libraries/LoRaLAN/src`);
-  RadioLib no está en el repo y se pasa con `-DRADIOLIB_DIR`.
+- Por defecto CMake toma la biblioteca LoRaLAN de `../../IMPLEMENTACIONMIA/libraries/LoRaLAN/src`.
+  Si solo se tiene este repo, añadir `-DLORALAN_DIR=$PWD/../../LORALAN_LIB/LoRaLAN/src`
+  (desde `build/`). RadioLib no está en el repo y se pasa con `-DRADIOLIB_DIR`.
 - `make: *** No rule to make target 'gatewayLoRaLAN'` = no hay Makefile en la carpeta
   actual. Suele pasar por ejecutar `mkdir build && cd build` estando ya dentro de `build/`
   (se acaba en `build/build`). Solución: el bloque de arriba tal cual, que borra `build`.
@@ -164,8 +165,8 @@ Si falla `Inicializando SX1276`:
 
 ## 4. Nodo ESP32
 
-- Compilar con la biblioteca **del repo** (ver `README.md`, sección "Firmware del nodo").
-  Desde el IDE de Arduino hay que copiar antes `IMPLEMENTACIONMIA/libraries/LoRaLAN` encima
+- Compilar con la biblioteca **del repo** (ver `README.md`, sección "Arranque rápido").
+  Desde el IDE de Arduino hay que copiar antes `LORALAN_LIB/LoRaLAN` encima
   de `Documents/Arduino/libraries/LoRaLAN`, porque la copia que usa el IDE está desfasada.
 - Pines del SX1276: CS=15, RST=13, DIO0=4. Bus SPI compartido con el PN532: SCK=18,
   MISO=19, MOSI=23; CS del PN532 = 5, IRQ = 34. PN532 a **3,3 V**.

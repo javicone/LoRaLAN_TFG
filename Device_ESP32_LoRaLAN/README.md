@@ -137,7 +137,7 @@ desfasada):
 
 ```bash
 arduino-cli compile --fqbn esp32:esp32:esp32 \
-  --library ../../IMPLEMENTACIONMIA/libraries/LoRaLAN \
+  --library ../LORALAN_LIB/LoRaLAN \
   --libraries ~/Documents/Arduino/libraries .
 ```
 
