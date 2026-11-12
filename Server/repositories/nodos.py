@@ -1,6 +1,7 @@
 import logging
 
 import aiomysql
+from datetime import datetime
 from typing import Optional, Dict
 
 from utils.database_pool import get_db_pool
@@ -89,6 +90,27 @@ async def aula_de_nodo(device_id: str) -> Optional[Dict]:
                 (device_id,),
             )
             return await cursor.fetchone()
+
+
+async def nodos_con_clase_en_curso() -> set:
+    """
+    device_id de los nodos cuya aula tiene ahora una clase. Usa la hora local
+    del servidor, la misma con la que se guardan las clases. Si la BD falla
+    devuelve un conjunto vacío: el panel sigue mostrando sensores y relés.
+    """
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT DISTINCT n.device_id FROM nodos n JOIN clases c ON c.aula_id = n.id_aula "
+                    "WHERE %s BETWEEN c.hora_inicio AND c.hora_fin",
+                    (datetime.now(),),
+                )
+                return {fila[0] for fila in await cursor.fetchall()}
+    except Exception as e:
+        logger.error(f"DB Error clase en curso: {e}")
+        return set()
 
 
 async def asignar_aula_a_nodo(device_id: str, nombre_aula: str) -> Optional[int]:

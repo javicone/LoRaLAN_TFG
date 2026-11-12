@@ -14,7 +14,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
-from repositories.nodos import asignar_aula_a_nodo
+from repositories.nodos import asignar_aula_a_nodo, nodos_con_clase_en_curso
 from routers.auth import verificar_token_web
 from services import gateway_service as gw
 from services.aula_service import verificar_nombre_aula_disponible
@@ -74,7 +74,13 @@ def _encolar(device_id: str, comando: dict) -> dict:
 @router.get("/estado")
 async def estado(payload: dict = Depends(staff)):
     es_admin = payload.get("rol") == ADMIN
-    respuesta = {"aulas": gw.estado_aulas(incluir_radio=es_admin)}
+    aulas = gw.estado_aulas(incluir_radio=es_admin)
+    # Clase programada, del webservice o abierta por el primer fichaje: todas
+    # están en la tabla clases. El distintivo se apaga solo al llegar su fin.
+    en_curso = await nodos_con_clase_en_curso()
+    for fila in aulas:
+        fila["clase_en_curso"] = fila["device_id"] in en_curso
+    respuesta = {"aulas": aulas}
     if es_admin:
         ahora = time.time()
         respuesta["gateways"] = [

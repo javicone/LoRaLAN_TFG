@@ -47,6 +47,12 @@ def client(monkeypatch):
     monkeypatch.setattr(rgw, "registrar_nodo_si_no_existe", registrar_nodo)
     monkeypatch.setattr(rgw, "aula_de_nodo", aula_de_nodo)
     monkeypatch.setattr(rpanel, "asignar_aula_a_nodo", asignar_aula)
+    bd["en_curso"] = set()   # device_id con clase ahora
+
+    async def con_clase():
+        return bd["en_curso"]
+
+    monkeypatch.setattr(rpanel, "nodos_con_clase_en_curso", con_clase)
 
     app = FastAPI()
     app.include_router(rgw.router)
@@ -189,6 +195,16 @@ def test_permisos_panel(client):
                        json={"device_id": "node-016", "nombre": "Aula 3"}).status_code == 403
 
 
+def test_conserje_ve_clase_en_curso(client):
+    for node in (16, 17):
+        client.post("/gateway/uplink", headers=auth_gw(), json={"gateway": GW, "node": node, "tipo": "reles",
+                                                                  "rele1": False, "rele2": False})
+    client.bd["en_curso"] = {"node-016"}
+    aulas = {a["device_id"]: a for a in client.get("/panel/estado", cookies=sesion("conserje")).json()["aulas"]}
+    assert aulas["node-016"]["clase_en_curso"] is True
+    assert aulas["node-017"]["clase_en_curso"] is False
+
+
 def test_asignar_aula(client):
     r = client.post("/panel/aula", cookies=sesion("administrador"), json={"device_id": "node-016", "nombre": "Aula 3"})
     assert r.status_code == 200 and client.bd["aulas"]["node-016"] == "Aula 3"
@@ -225,6 +241,59 @@ def test_fichaje_reenviado_no_duplica(monkeypatch):
     asyncio.run(asis.registrar_asistencia("04A30FB2", "node-016"))
     asyncio.run(asis.registrar_asistencia("04A30FB2", "node-016"))   # reenvío tras REINTENTAR
     assert insertados == [(5, 1, 9)]
+    gw.aulas_estado.clear()
+
+
+def test_sin_clase_el_primer_profesor_la_abre(monkeypatch):
+    """Sin clase en BD ni webservice: el primero que ficha abre una clase suya
+    hasta la hora en punto; otro profesor en esa hora recibe 403 (DENEGADO)."""
+    from datetime import datetime
+
+    clases = []      # (id, profesor, asignatura, inicio, fin)
+    insertados = []
+    profesores = {"AAAA0001": 5, "BBBB0002": 6}
+
+    async def uid(u): return profesores[u]
+    async def aula(d): return 1
+    async def clase_actual(a, f):
+        for id_, prof, asig, ini, fin in clases:
+            if ini <= f <= fin:
+                return {"id": id_, "profesor_id": prof, "asignatura": asig}
+        return None
+    async def webservice(nombre): return None
+    async def guardar(aula_id, profesor_id, asignatura, hora_inicio, hora_fin):
+        clases.append((len(clases) + 1, profesor_id, asignatura, hora_inicio, hora_fin))
+        return len(clases)
+    async def existe(u, a, c): return (u, a, c) in insertados
+    async def insertar(u, a, f, c): insertados.append((u, a, c))
+
+    monkeypatch.setattr(asis, "get_usuario_id_by_uid", uid)
+    monkeypatch.setattr(asis, "get_aula_id_by_device_id", aula)
+    monkeypatch.setattr(asis, "get_clase_actual_by_aula_and_time", clase_actual)
+    monkeypatch.setattr(asis, "get_clase_from_webservice", webservice)
+    monkeypatch.setattr(asis, "guardar_clase_webservice", guardar)
+    monkeypatch.setattr(asis, "existe_asistencia_en_clase", existe)
+    monkeypatch.setattr(asis, "insert_asistencia", insertar)
+    gw.aulas_estado["node-254"] = {"aula": "Aula 2"}
+
+    t = datetime(2026, 11, 20, 10, 23, 45, 600000)
+    r = asyncio.run(asis.registrar_asistencia("AAAA0001", "node-254", t))
+    assert r["clase_id"] == 1 and r["asignatura"] == asis.ASIGNATURA_SIN_PROGRAMAR
+    assert clases == [(1, 5, asis.ASIGNATURA_SIN_PROGRAMAR,
+                       datetime(2026, 11, 20, 10, 23, 45), datetime(2026, 11, 20, 11, 0))]
+
+    # el mismo profesor otra vez: OK sin duplicar ni abrir otra clase
+    asyncio.run(asis.registrar_asistencia("AAAA0001", "node-254", t.replace(minute=40)))
+    assert insertados == [(5, 1, 1)] and len(clases) == 1
+
+    # otro profesor en la misma hora: la clase es del primero
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(asis.registrar_asistencia("BBBB0002", "node-254", t.replace(minute=50)))
+    assert e.value.status_code == 403
+
+    # pasada la hora en punto, el siguiente abre la suya
+    asyncio.run(asis.registrar_asistencia("BBBB0002", "node-254", t.replace(hour=11, minute=5)))
+    assert clases[-1][1:3] == (6, asis.ASIGNATURA_SIN_PROGRAMAR) and clases[-1][4] == datetime(2026, 11, 20, 12, 0)
     gw.aulas_estado.clear()
 
 

@@ -23,8 +23,11 @@ async def get_clase_from_webservice(aula: str) -> Optional[Dict]:
         logger.info(f"🌐 Consultando webservice para aula: {aula}")
         
         async with aiohttp.ClientSession() as session:
-            # Realizar petición GET con el parámetro aula
-            async with session.get(url, params={"aula": aula}, timeout=aiohttp.ClientTimeout(total=10)) as response:
+            # Realizar petición GET con el parámetro aula. Timeout de 0,5 s: el
+            # gateway corta la petición del fichaje a los 800 ms
+            # (FICHAJE_HTTP_TIMEOUT_MS); si el webservice no llega a tiempo se
+            # sigue sin él y se abre la clase automática.
+            async with session.get(url, params={"aula": aula}, timeout=aiohttp.ClientTimeout(total=0.5)) as response:
                 
                 # Verificar código de respuesta HTTP
                 if response.status != 200:
@@ -63,7 +66,7 @@ async def get_clase_from_webservice(aula: str) -> Optional[Dict]:
         logger.error(f"❌ Error de conexión al webservice: {e}")
         return None
     except asyncio.TimeoutError:
-        logger.error(f"❌ Timeout al consultar webservice (>10s)")
+        logger.error(f"❌ Timeout al consultar webservice (>0,5 s)")
         return None
     except Exception as e:
         logger.error(f"❌ Error inesperado al consultar webservice: {e}")

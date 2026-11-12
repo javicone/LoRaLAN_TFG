@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import HTTPException
 import logging
 from repositories.asistenciaRepository import (
@@ -13,6 +13,8 @@ from repositories.asistenciaRepository import (
 from repositories.claseRepository import get_clase_from_webservice, guardar_clase_webservice
 
 logger = logging.getLogger(__name__)
+
+ASIGNATURA_SIN_PROGRAMAR = "Clase sin programar"
 
 async def registrar_asistencia(uid: str, device_id: str, timestamp: datetime = None) -> dict:
     """Registra asistencia vinculando profesor, aula y clase actual"""
@@ -80,38 +82,51 @@ async def registrar_asistencia(uid: str, device_id: str, timestamp: datetime = N
                     "hora_inicio": clase_ws.get("hora_inicio"),
                     "hora_fin": clase_ws.get("hora_fin")
                 }
-    
-    clase_id = None
-    asignatura = None
-    
-    if clase:
-        # 6. Validar que el profesor del fichaje coincida con el profesor de la clase
-        # Solo validar si tenemos profesor_id de la BD
-        if clase.get("profesor_id") and clase["profesor_id"] != usuario_id:
-            logger.warning(
-                f"⚠️ El profesor {usuario_id} (UID: {uid}) intentó fichar en clase de profesor {clase['profesor_id']}"
-            )
-            raise HTTPException(
-                status_code=403, 
-                detail=f"No puedes fichar en esta clase. La clase de {clase['asignatura']} está asignada a otro profesor"
-            )
-        
-        clase_id = clase.get("id")
-        asignatura = clase["asignatura"]
-        logger.info(
-            f"✅ Fichaje válido: Profesor {usuario_id} en clase ({asignatura}) "
-            f"de {clase.get('hora_inicio')} a {clase.get('hora_fin')}"
-        )
-    else:
-        logger.error(
-            f"❌ No hay clase programada en aula '{nombre_aula}' para {fecha_hora}. "
-            f"Fichaje rechazado."
+
+    # 5b. Sin clase en BD ni en el webservice: el primer profesor que ficha abre
+    # una clase suya hasta la siguiente hora en punto. Los demás profesores que
+    # fichen en esa hora reciben 403 (DENEGADO) por la validación del paso 6.
+    # Un fallo al guardarla se propaga: el nodo recibe REINTENTAR.
+    # ponytail: dos fichajes simultáneos podrían abrir dos clases; no ocurre porque
+    # el gateway entrega los fichajes de uno en uno. Bloqueo por aula si cambia.
+    if not clase:
+        # Sin microsegundos: MySQL los redondea en DATETIME y el inicio podría
+        # quedar después del propio fichaje.
+        hora_inicio = fecha_hora.replace(microsecond=0)
+        hora_fin = hora_inicio.replace(minute=0, second=0) + timedelta(hours=1)
+        clase = {
+            "id": await guardar_clase_webservice(
+                aula_id=aula_id,
+                profesor_id=usuario_id,
+                asignatura=ASIGNATURA_SIN_PROGRAMAR,
+                hora_inicio=hora_inicio,
+                hora_fin=hora_fin,
+            ),
+            "profesor_id": usuario_id,
+            "asignatura": ASIGNATURA_SIN_PROGRAMAR,
+            "hora_inicio": hora_inicio,
+            "hora_fin": hora_fin,
+        }
+        logger.info(f"🆕 Sin clase en '{nombre_aula}': abierta para el profesor {usuario_id} hasta {hora_fin:%H:%M}")
+
+    # 6. Validar que el profesor del fichaje coincida con el profesor de la clase
+    # Solo validar si tenemos profesor_id de la BD
+    if clase.get("profesor_id") and clase["profesor_id"] != usuario_id:
+        logger.warning(
+            f"⚠️ El profesor {usuario_id} (UID: {uid}) intentó fichar en clase de profesor {clase['profesor_id']}"
         )
         raise HTTPException(
-            status_code=400, 
-            detail=f"No hay clase programada en '{nombre_aula}' en este momento. No se puede fichar."
+            status_code=403,
+            detail=f"No puedes fichar en esta clase. La clase de {clase['asignatura']} está asignada a otro profesor"
         )
-    
+
+    clase_id = clase.get("id")
+    asignatura = clase["asignatura"]
+    logger.info(
+        f"✅ Fichaje válido: Profesor {usuario_id} en clase ({asignatura}) "
+        f"de {clase.get('hora_inicio')} a {clase.get('hora_fin')}"
+    )
+
     # 7. Guardar asistencia, una sola vez por clase. Por LoRaLAN el nodo reenvía
     # el fichaje si no le llega la respuesta a tiempo (NACK REINTENTAR), aunque
     # el servidor ya lo hubiera registrado: el reenvío debe contestar OK sin duplicar.

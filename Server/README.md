@@ -41,12 +41,15 @@ una cookie; el gateway obtiene el suyo con `POST /auth/device` y su api_key de l
 | Resultado | Código |
 |---|---|
 | Asistencia registrada (o ya registrada antes) | 0 OK |
-| No hay clase en esa aula ahora | 1 SIN_CLASE |
+| (El servidor ya no lo devuelve; se conserva en el protocolo) | 1 SIN_CLASE |
 | La clase es de otro profesor | 2 DENEGADO |
 | Tarjeta desconocida o nodo sin aula | 3 DESCONOCIDO |
 | Cualquier otro error (p. ej. BD caída) | 4 REINTENTAR |
 
-Si la clase no está en la BD se consulta el webservice de horarios y se guarda.
+Si la clase no está en la BD se consulta el webservice de horarios (como mucho 0,5 s, para
+responder dentro del plazo del gateway) y se guarda. Si tampoco está ahí, el primer profesor
+que ficha abre una «Clase sin programar» suya hasta la siguiente hora en punto; otro profesor
+en esa hora recibe DENEGADO. Los paneles marcan «Clase en curso» mientras dura cualquier clase.
 
 **Estado de la red**: se guarda en memoria. Un nodo está conectado si el gateway subió algo
 suyo en los últimos 120 s, y aparece solo en la tabla `nodos` como `node-NNN` con su
