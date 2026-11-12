@@ -40,6 +40,14 @@ static uint8_t ultimoUid[7] = {0};
 static uint8_t ultimoUidLen = 0;
 static unsigned long ultimoUidMs = 0;
 
+// LED de reposo: verde si los cuatro sensores y la asociación LoRa van bien;
+// amarillo si no (incluye la radio que no arrancó: nunca llega a asociarse).
+static void actualizarLedReposo() {
+  const bool todoOk = sensores.bme280_ok && sensores.bh1750_ok &&
+                      sensores.ld2410_ok && sensores.pn532_ok && loraAsociado();
+  indicarEstado(todoOk ? NORMAL : ADVERTENCIA);
+}
+
 void setup() {
   pinMode(ledRojoPin, OUTPUT);
   pinMode(ledVerdePin, OUTPUT);
@@ -52,7 +60,6 @@ void setup() {
   initSensores();   // incluye setupNFC(), que inicia el bus SPI compartido con la radio
 
   if (!setupLoRa()) {
-    indicarEstado(CRITICO);
     displayMessage("Error radio LoRa", 0);
     // Sin radio el nodo no puede fichar: se sigue para mostrar sensores en pantalla.
   } else {
@@ -66,6 +73,7 @@ void setup() {
       0);           /* pin task to core 0 */
   }
   delay(500);
+  actualizarLedReposo();
 }
 
 // ============================================
@@ -121,6 +129,7 @@ static void atenderResultadoFichaje() {
       break;
     case ResultadoFichaje::SIN_CLASE:
       Serial.println("⚠️ No hay clase programada en este aula ahora");
+      ledVerde(false);
       ledAmarillo(true);
       displayMessage("Sin clase ahora", 1500);
       ledAmarillo(false);
@@ -138,6 +147,8 @@ static void atenderResultadoFichaje() {
     case ResultadoFichaje::REINTENTAR:
       // NACK temporal: el nodo lo reenviará solo; se avisa una vez.
       Serial.println("⏳ Sin respuesta del servidor: se reenviará");
+      ledVerde(false);
+      ledAmarillo(false);
       parpadearLED(ledAmarilloPin, 3, 150);
       displayMessage("Guardado, se reenviara", 2000);
       ultimoUidLen = 0;   // permitir volver a pasar la tarjeta
@@ -150,6 +161,7 @@ static void atenderResultadoFichaje() {
 void loop() {
   atenderNFC();
   atenderResultadoFichaje();
+  actualizarLedReposo();   // tras un resultado, el LED vuelve a su color de reposo
 
   // Sensores: se leen aquí (core 1) y la radio envía la última lectura en el POLL.
   static unsigned long ultimaLecturaSensores = 0;

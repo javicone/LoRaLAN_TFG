@@ -75,11 +75,10 @@ extern unsigned long nfcTimeLastCardRead;
 // ============================================
 // ESTADOS DE LEDs
 // ============================================
+// LED de reposo: verde = todo en orden; amarillo = falla un sensor o LoRa.
 enum EstadoLED {
   NORMAL,
-  ADVERTENCIA,
-  ERROR,
-  CRITICO
+  ADVERTENCIA
 };
 
 // ============================================

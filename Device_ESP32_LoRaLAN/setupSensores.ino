@@ -34,13 +34,5 @@ void initSensores() {
   Serial.printf("PN532:  %s\n", sensores.pn532_ok ? "✅" : "❌");
   Serial.printf("OLED:   %s\n", sensores.display_ok ? "✅" : "❌");  // ⬅️ NUEVO
   Serial.println("==============================\n");
-
-
-  // Indicar estado inicial
-  if(sensores.bme280_ok && sensores.bh1750_ok && 
-     sensores.ld2410_ok && sensores.pn532_ok) {
-    indicarEstado(NORMAL);
-  } else {
-    indicarEstado(ADVERTENCIA);
-  }
+  // El LED de reposo lo fija actualizarLedReposo() al final de setup() y en loop().
 }

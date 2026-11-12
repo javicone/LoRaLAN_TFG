@@ -8,12 +8,12 @@
  * - Buzzer para alertas sonoras
  * - Relé para control de dispositivos (calefacción, etc.)
  * 
- * Estados soportados:
- * - NORMAL:      Sistema funcionando correctamente
- * - ADVERTENCIA: Sensor con problemas, no crítico
- * - ERROR:       Fallo de sensor, requiere atención
- * - CRITICO:     Múltiples fallos, sistema comprometido
- * 
+ * LED de reposo (fijo, sin sonido): lo fija loop() con indicarEstado().
+ * - NORMAL:      verde, sensores y enlace LoRa en orden
+ * - ADVERTENCIA: amarillo, falla algún sensor o el nodo no está asociado
+ * El parpadeo y el buzzer quedan para el fichaje y su resultado, y para la
+ * secuencia de arranque, que sirve para comprobar la placa.
+ *
  * Autor: Sistema de Control de Asistencia
  * Fecha: 2025
  * ════════════════════════════════════════════════════════════════════════════
@@ -105,76 +105,22 @@ void testIndicadores() {
 // FUNCIÓN PRINCIPAL: INDICAR ESTADO
 // ============================================================================
 
+// LED de reposo, fijo y sin sonido. Se llama en cada vuelta de loop(), así que
+// tras un fichaje el LED vuelve solo a su color.
 void indicarEstado(EstadoLED estado) {
+  static bool primeraVez = true;
   static EstadoLED estadoAnterior = NORMAL;
-  
-  // Solo loguear si cambia el estado
-  if(estado != estadoAnterior) {
-    Serial.println("\n╔════════════════════════════════╗");
-    Serial.println("║   CAMBIO DE ESTADO SISTEMA     ║");
-    Serial.println("╚════════════════════════════════╝");
+
+  if (primeraVez || estado != estadoAnterior) {
+    Serial.println(estado == NORMAL ? "🟢 LED verde: sensores y LoRa en orden"
+                                    : "🟡 LED amarillo: falla algún sensor o el nodo no está asociado");
     estadoAnterior = estado;
+    primeraVez = false;
   }
-  
-  switch(estado) {
-    case NORMAL:
-      // LED verde encendido, todo OK
-      digitalWrite(ledVerdePin, HIGH);
-      digitalWrite(ledAmarilloPin, LOW);
-      digitalWrite(ledRojoPin, LOW);
-      noTone(buzzerPin);
-      
-      if(estado != estadoAnterior) {
-        Serial.println("✅ Estado: NORMAL");
-        Serial.println("   Todos los sistemas funcionando correctamente");
-      }
-      break;
-      
-    case ADVERTENCIA:
-      // LED amarillo encendido, beep corto
-      digitalWrite(ledVerdePin, LOW);
-      digitalWrite(ledAmarilloPin, HIGH);
-      digitalWrite(ledRojoPin, LOW);
-      tone(buzzerPin, 1000, 100);  // Beep corto 1kHz
-      
-      if(estado != estadoAnterior) {
-        Serial.println("⚠️  Estado: ADVERTENCIA");
-        Serial.println("   Algunos sensores requieren atención");
-      }
-      break;
-      
-    case ERROR:
-      // LED rojo parpadeante, beep medio
-      digitalWrite(ledVerdePin, LOW);
-      digitalWrite(ledAmarilloPin, LOW);
-      parpadearLED(ledRojoPin, 3, 100);  // 3 parpadeos rápidos
-      tone(buzzerPin, 800, 200);  // Beep medio 800Hz
-      
-      if(estado != estadoAnterior) {
-        Serial.println("❌ Estado: ERROR");
-        Serial.println("   Fallo detectado en sensores");
-        Serial.println("   Se intentará recuperación automática");
-      }
-      break;
-      
-    case CRITICO:
-      // LED rojo fijo, alarma sonora
-      digitalWrite(ledVerdePin, LOW);
-      digitalWrite(ledAmarilloPin, LOW);
-      digitalWrite(ledRojoPin, HIGH);
-      tone(buzzerPin, 500, 500);  // Beep largo 500Hz (grave)
-      
-      if(estado != estadoAnterior) {
-        Serial.println("🚨 Estado: CRÍTICO");
-        Serial.println("   MÚLTIPLES FALLOS DETECTADOS");
-        Serial.println("   Sistema comprometido - Requiere intervención manual");
-      }
-      break;
-  }
-  
-  if(estado != estadoAnterior) {
-    Serial.println("════════════════════════════════\n");
-  }
+
+  digitalWrite(ledVerdePin, estado == NORMAL ? HIGH : LOW);
+  digitalWrite(ledAmarilloPin, estado == NORMAL ? LOW : HIGH);
+  digitalWrite(ledRojoPin, LOW);
 }
 
 // ============================================================================
@@ -293,22 +239,26 @@ void secuenciaInicio() {
 
 void secuenciaError() {
   Serial.println("⚠️ Secuencia de error...");
-  
+
+  // Se apaga el LED de reposo para que el rojo no se mezcle con él.
+  digitalWrite(ledVerdePin, LOW);
+  digitalWrite(ledAmarilloPin, LOW);
   for(int i = 0; i < 3; i++) {
     digitalWrite(ledRojoPin, HIGH);
-    digitalWrite(ledAmarilloPin, HIGH);
     beep(400, 100);
     delay(150);
-    
+
     digitalWrite(ledRojoPin, LOW);
-    digitalWrite(ledAmarilloPin, LOW);
     delay(150);
   }
 }
 
+// Deja el verde encendido mientras se muestra el fichaje; loop() restaura después
+// el LED de reposo.
 void secuenciaExito() {
   Serial.println("✅ Secuencia de éxito...");
-  
+
+  digitalWrite(ledAmarilloPin, LOW);
   digitalWrite(ledVerdePin, HIGH);
   beep(1200, 100);
   delay(100);
@@ -316,7 +266,6 @@ void secuenciaExito() {
   delay(100);
   beep(1800, 150);
   delay(300);
-  digitalWrite(ledVerdePin, LOW);
 }
 
 // ============================================================================

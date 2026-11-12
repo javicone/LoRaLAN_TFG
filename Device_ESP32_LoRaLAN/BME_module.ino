@@ -19,7 +19,6 @@ bool setupBME(){
   Serial.println("❌ FALLO");
   sensores.bme280_ok = false;
   sensores.bme280_errores++;
-  indicarEstado(ERROR);
   return false;
 }
 

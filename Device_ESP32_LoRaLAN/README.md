@@ -38,6 +38,11 @@ El nodo solo envía el UID de la tarjeta; el gateway le devuelve el resultado:
 - **Sensores y relés**: van en la respuesta al sondeo del gateway; el estado de los relés,
   cuando cambia y cada 6 sondeos.
 - **Órdenes**: el gateway puede encender o apagar los relés y reiniciar el nodo.
+- **LED y buzzer**: en reposo el LED es fijo, verde si los cuatro sensores y el enlace LoRa
+  van bien y amarillo si falla alguno o el nodo no está asociado. El parpadeo y los pitidos
+  quedan para el fichaje (pitido al leer la tarjeta; tres tonos si es OK; rojo y tres
+  graves si se deniega o la tarjeta es desconocida; amarillo si no hay clase o se
+  reenviará) y para la secuencia de arranque, que sirve para comprobar la placa.
 
 Mensajes de `AppProtocol.h` (byte 0 = tipo):
 

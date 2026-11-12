@@ -19,7 +19,6 @@ bool setupLightMeter(){
   Serial.println("❌ FALLO");
   sensores.bh1750_ok = false;
   sensores.bh1750_errores++;
-  indicarEstado(ERROR);
   return false;
 }
 

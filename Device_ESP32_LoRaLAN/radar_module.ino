@@ -10,7 +10,6 @@ bool setupRadar(){
     Serial.print(F("LD2410 radar sensor initialising: "));
     if (radar.isConnected()) {
         sensores.ld2410_ok = true;
-        indicarEstado(NORMAL);
         Serial.println(F("OK"));
         Serial.print(F("LD2410 firmware version: "));
         Serial.print(radar.firmware_major_version);
@@ -21,7 +20,6 @@ bool setupRadar(){
         return true;
     } else {
         Serial.println(F("not connected"));
-        indicarEstado(ERROR);
         sensores.ld2410_ok = false;
         return false;
     }
