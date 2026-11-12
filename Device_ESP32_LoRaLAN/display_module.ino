@@ -42,6 +42,7 @@ bool setupDisplay() {
   sensores.display_ok = true;
   
   // Configuración inicial de la pantalla
+  display.setRotation(2);   // 180º: la OLED va montada del revés en la caja
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);

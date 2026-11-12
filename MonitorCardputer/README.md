@@ -9,7 +9,7 @@ LoRa-1262 (SX1262). **Solo escucha**: nunca transmite, así que no altera la red
   descifra sensores, UIDs y órdenes, y comprueba el MIC. Si se enciende después del JOIN,
   basta con reiniciar el nodo desde el panel.
 - **Avisa** de nodos que no responden, MIC incorrecto, secuencias repetidas, tramas de
-  otra red y ciclo de trabajo por encima del 1 %.
+  otra red y ciclo de trabajo por encima del 10 % (sub-banda de 869,525 MHz).
 
 Tres pantallas (teclas `1`, `2`, `3`; `;` y `.` para desplazar): resumen de la red, una
 tarjeta por nodo y registro de eventos (que también sale por el puerto serie).

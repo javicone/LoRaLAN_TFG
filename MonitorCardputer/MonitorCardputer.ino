@@ -152,15 +152,21 @@ static const char* textoCodigo(uint8_t c) {
   return c <= 4 ? t[c] : "?";
 }
 
+// Cierra el minuto aunque no lleguen tramas; un minuto sin tramas cuenta 0.
+static void contarMinuto(bool trama) {
+  const uint32_t m = millis() / 60000UL;
+  if (m != minutoTramas) {
+    tramasMinAnterior = (m == minutoTramas + 1) ? tramasEsteMin : 0;
+    tramasEsteMin = 0;
+    minutoTramas = m;
+  }
+  if (trama) tramasEsteMin++;
+}
+
 static void procesarTrama(const uint8_t* buf, size_t len, float rssi, float snr, uint32_t aireMs) {
   total++;
   ultimaRxMs = millis();
-  if (millis() / 60000UL != minutoTramas) {
-    tramasMinAnterior = tramasEsteMin;
-    tramasEsteMin = 0;
-    minutoTramas = millis() / 60000UL;
-  }
-  tramasEsteMin++;
+  contarMinuto(true);
 
   LoRaLANFrame f;
   if (!LoRaLANPacket::parse(buf, len, f)) { invalidas++; return; }
@@ -177,14 +183,18 @@ static void procesarTrama(const uint8_t* buf, size_t len, float rssi, float snr,
   Nodo& emisor = nodos[h.srcId];
   Nodo& nodo = nodos[idNodo];   // si dst es broadcast (0xFF) no se usa
 
-  // Estadisticas del emisor
-  emisor.vistoMs = millis();
-  emisor.rssi = rssi;
-  emisor.snr = snr;
-  emisor.rssiMedia = emisor.tramas ? emisor.rssiMedia * 0.9f + rssi * 0.1f : rssi;
-  emisor.tramas++;
-  emisor.aire.sumar(aireMs);
-  if (retry) emisor.reintentos++;
+  // Estadisticas del emisor. Un JOIN_REQUEST con origen 0 es un nodo que aun
+  // no tiene direccion, no el gateway: no se le apunta a nodos[0].
+  const bool sinDireccion = tipo == uint8_t(MsgType::JOIN_REQUEST) && h.srcId == LORALAN_GATEWAY_ID;
+  if (!sinDireccion) {
+    emisor.vistoMs = millis();
+    emisor.rssi = rssi;
+    emisor.snr = snr;
+    emisor.rssiMedia = emisor.tramas ? emisor.rssiMedia * 0.9f + rssi * 0.1f : rssi;
+    emisor.tramas++;
+    emisor.aire.sumar(aireMs);
+    if (retry) emisor.reintentos++;
+  }
 
   // Huecos de seq (solo nodos; el ACK lleva la seq de la trama que confirma)
   if (h.srcId != LORALAN_GATEWAY_ID && tipo != uint8_t(MsgType::ACK)) {
@@ -404,6 +414,7 @@ static void tarjetaDato(int x, int y, const char* titulo, const char* valor, uin
 
 static void dibujarResumen() {
   char v[16];
+  contarMinuto(false);
   int activos = 0;
   for (int i = 1; i < 256; i++) activos += nodos[i].vistoMs && millis() - nodos[i].vistoMs < 300000UL;
 
@@ -417,9 +428,11 @@ static void dibujarResumen() {
   if (ultimoTimeSyncMs) hace(v, sizeof(v), ultimoTimeSyncMs);
   tarjetaDato(121, Y0 + 38, "ULTIMO TIME_SYNC", v, C_TEXTO);
 
-  // Ciclo de trabajo de la ultima hora: escala 0..2 %, marca en el limite del 1 %
+  // Ciclo de trabajo de la ultima hora: escala 0..2 x limite, marca en el limite
   int y = Y0 + 77;
-  texto(&fonts::Font0, C_TENUE, 5, y, "CICLO DE TRABAJO (1 h)   limite 1%");
+  char cab[40];
+  snprintf(cab, sizeof(cab), "CICLO DE TRABAJO (1 h)   limite %.0f%%", DUTY_LIMITE_PCT);
+  texto(&fonts::Font0, C_TENUE, 5, y, cab);
   y += 11;
   int filas = 0;
   for (int i = 0; i < 256 && filas < 2; i++) {
@@ -432,8 +445,8 @@ static void dibujarResumen() {
     texto(&fonts::Font0, C_TEXTO, 5, y + 2, etiqueta);
     const int bx = 32, bw = 150;
     lienzo.fillRoundRect(bx, y + 1, bw, 9, 4, C_TARJETA);
-    const int lleno = constrain(int(d / 2.0f * bw), d > 0 ? 4 : 0, bw);
-    lienzo.fillRoundRect(bx, y + 1, lleno, 9, 4, d > DUTY_LIMITE_PCT ? C_MAL : d > 0.7f ? C_AVISO : C_OK);
+    const int lleno = constrain(int(d / (2 * DUTY_LIMITE_PCT) * bw), d > 0 ? 4 : 0, bw);
+    lienzo.fillRoundRect(bx, y + 1, lleno, 9, 4, d > DUTY_LIMITE_PCT ? C_MAL : d > 0.7f * DUTY_LIMITE_PCT ? C_AVISO : C_OK);
     lienzo.drawFastVLine(bx + bw / 2, y - 1, 13, C_TEXTO);
     snprintf(v, sizeof(v), "%.2f%%", d);
     texto(&fonts::Font0, C_TEXTO, 236, y + 2, v, top_right);
