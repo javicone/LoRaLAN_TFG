@@ -24,4 +24,5 @@ tarjeta por nodo y registro de eventos (que también sale por el puerto serie).
 ## Compilar
 
 Placa M5Cardputer (ESP32-S3) con las bibliotecas M5Cardputer, RadioLib y LoRaLAN (la del
-repo). La radio usa los mismos parámetros que la red: 869,525 MHz, SF7, 125 kHz, CR 4/5.
+repo). La radio usa los mismos parámetros que el resto de componentes. El firmware se carga
+con el arduino IDE.
