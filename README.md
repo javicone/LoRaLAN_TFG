@@ -67,11 +67,6 @@ set -a; . ./gateway.env; set +a; sudo -E ./build/gatewayLoRaLAN
 compilar el firmware mediante arduino ide al esp32.
 ```
 
-## Estado
-
-Probado en hardware de extremo a extremo: nodo ESP32, gateway en la Raspberry Pi,
-servidor y base de datos.
-
 Autor: Javier Conejero Rodríguez
 
 Centro Universitario de Mérida | Universidad de Extremadura
