@@ -1,209 +1,104 @@
 # Arranque del prototipo
 
-Puesta en marcha de extremo a extremo: base de datos, servidor y gateway en la Raspberry
-Pi, y nodo ESP32.
-
 ```
 ESP32 (nodo) --LoRa--> Raspberry Pi 192.168.1.43 [gateway LoRaLAN + FastAPI :8000 + MariaDB :3306]
 ```
 
-Todo corre en la Pi: el gateway habla con FastAPI en local (`127.0.0.1:8000`) y FastAPI con
-MariaDB en local.
+Todo corre en la Pi y se habla en local. Orden: **1. BD → 2. servidor → 3. gateway → 4. nodo**.
+Las órdenes se lanzan desde `~/Desktop/TFGTelem/controlAsistenciaMigrado` (antes, `git pull`).
 
-Orden de arranque: **1. BD → 2. servidor → 3. gateway → 4. nodo**. La BD (MariaDB) arranca
-sola con la Pi.
+## 1. Base de datos (solo la primera vez)
 
-Las órdenes se ejecutan desde la carpeta del repo en la Pi:
+MariaDB arranca sola con la Pi. Sustituir `CONTRASEÑA_BD` y `API_KEY_GATEWAY` (16 caracteres o más):
 
 ```bash
-cd ~/Desktop/TFGTelem/controlAsistenciaMigrado
-git pull
+sudo apt install -y mariadb-server
+sudo mysql -e "CREATE DATABASE \`control-asistencia\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+sudo mysql -e "CREATE USER 'asistencia'@'localhost' IDENTIFIED BY 'CONTRASEÑA_BD';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON \`control-asistencia\`.* TO 'asistencia'@'localhost';"
+sudo mysql control-asistencia < Database/esquema.sql
+sudo mysql control-asistencia < Database/migracion_loralan.sql
+sudo mysql control-asistencia -e "UPDATE nodos SET api_key='API_KEY_GATEWAY' WHERE device_id='gw-rpi-01';"
 ```
 
----
+La misma api_key va en `gatewayLoRaLAN/gateway.env` (`LORALAN_API_KEY=...`).
 
-## 1. Raspberry Pi: base de datos (MariaDB)
+## 2. Servidor FastAPI
 
-**Solo la primera vez.** Elegir una contraseña para el usuario de la BD y una api_key para
-el gateway (16 caracteres o más) y sustituirlas abajo.
-
-1. Instalar MariaDB:
-   ```bash
-   sudo apt install -y mariadb-server
-   ```
-2. Crear la BD y su usuario:
-   ```bash
-   sudo mysql -e "CREATE DATABASE \`control-asistencia\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-   sudo mysql -e "CREATE USER 'asistencia'@'localhost' IDENTIFIED BY 'CONTRASEÑA_BD';"
-   sudo mysql -e "GRANT ALL PRIVILEGES ON \`control-asistencia\`.* TO 'asistencia'@'localhost';"
-   ```
-3. Crear las tablas y dar de alta el gateway:
-   ```bash
-   sudo mysql control-asistencia < Database/esquema.sql
-   sudo mysql control-asistencia < Database/migracion_loralan.sql
-   sudo mysql control-asistencia -e "UPDATE nodos SET api_key='API_KEY_GATEWAY' WHERE device_id='gw-rpi-01';"
-   ```
-4. Comprobar que el usuario entra por TCP, igual que el servidor (pide la contraseña):
-   ```bash
-   mysql -h localhost --protocol=TCP -u asistencia -p control-asistencia -e "SELECT device_id FROM nodos;"
-   ```
-   Debe listar `gw-rpi-01`.
-
-Después, poner la misma api_key en `gatewayLoRaLAN/gateway.env`
-(`LORALAN_API_KEY=API_KEY_GATEWAY`).
-
----
-
-## 2. Raspberry Pi: servidor FastAPI
-
-**Solo la primera vez:**
+**Primera vez:**
 
 ```bash
 cd Server
 sudo apt install -y python3-venv
-python3 -m venv .venv
-. .venv/bin/activate
+python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-```
-
-En `Server/.env`, la BD local:
-
-```
-DB_HOST=localhost
-DB_USER=asistencia
-DB_PASSWORD=CONTRASEÑA_BD
-DB_NAME=control-asistencia
-```
-
-Crear el primer administrador (el resto de usuarios, aulas y clases se crean después
-desde `/gestion-datos`):
-
-```bash
 python scripts/create_user.py "Administrador" admin@uex.es 'CONTRASEÑA_ADMIN' --rol administrador
 ```
 
-**Arrancar** (en su propia terminal, y dejarla abierta):
+`Server/.env`: `DB_HOST=localhost`, `DB_USER=asistencia`, `DB_PASSWORD=CONTRASEÑA_BD`,
+`DB_NAME=control-asistencia`. Usuarios, aulas y clases se crean luego desde `/gestion-datos`.
+
+**Arrancar** (terminal propia, abierta):
 
 ```bash
-cd ~/Desktop/TFGTelem/controlAsistenciaMigrado/Server
-. .venv/bin/activate
-python appFastApi.py
+cd Server && . .venv/bin/activate && python appFastApi.py
 ```
 
-Arranque correcto: `SSL/TLS DESHABILITADO`, `http://0.0.0.0:8000` y
-`Pool de base de datos creado`.
+Debe mostrar `SSL/TLS DESHABILITADO`, `http://0.0.0.0:8000` y `Pool de base de datos creado`.
+Va **sin TLS** porque el gateway no habla HTTPS: no restaurar los `keys/*.pem.bak`.
 
-El servidor tiene que ir **sin TLS**: el cliente HTTP del gateway no habla HTTPS. Los
-certificados están renombrados a `keys/*.pem.bak` para eso; no restaurarlos.
+## 3. Gateway LoRaLAN
 
-Comprobación (desde otra terminal de la Pi; la api_key está en `gatewayLoRaLAN/gateway.env`):
-
-```bash
-curl -s -X POST http://127.0.0.1:8000/auth/device -H 'Content-Type: application/json' \
-  -d '{"device_id":"gw-rpi-01","api_key":"TU_API_KEY"}'
-```
-
-Si devuelve un `access_token`, el servidor está bien y lee la BD.
-
----
-
-## 3. Raspberry Pi: gateway LoRaLAN
-
-**Solo la primera vez:** dependencias y RadioLib.
+**Primera vez:**
 
 ```bash
 sudo apt install -y build-essential cmake liblgpio-dev libmbedtls-dev
 ls ~/RadioLib/src/RadioLib.h || git clone https://github.com/jgromes/RadioLib ~/RadioLib
-sudo raspi-config               # Interface Options -> SPI -> Yes
-ls /dev/spidev0.0               # debe existir
+sudo raspi-config               # Interface Options -> SPI -> Yes; debe existir /dev/spidev0.0
 ```
 
-`libmbedtls-dev` es obligatoria: sin ella, la radio funcionaría pero sin cifrar, y
-CMake se niega a configurar el proyecto.
+Sin `libmbedtls-dev` (cifrado) CMake no configura.
 
-**Compilar.** Hay que pegar los comandos **línea a línea** y sin las líneas de comentario
-`#`: al pegar un bloque, la terminal mete basura (`^[[200~`).
+**Compilar**, pegando línea a línea (al pegar un bloque entero la terminal mete `^[[200~`):
 
 ```bash
-cd ~/Desktop/TFGTelem/controlAsistenciaMigrado/gatewayLoRaLAN
-rm -rf build
-mkdir build
-cd build
-cmake -DRADIOLIB_DIR=$HOME/RadioLib ..
+cd gatewayLoRaLAN
+rm -rf build && mkdir build && cd build
+cmake -DRADIOLIB_DIR=$HOME/RadioLib -DLORALAN_DIR=$PWD/../../LORALAN_LIB/LoRaLAN/src ..
 make -j4 gatewayLoRaLAN
 ```
 
-- Por defecto CMake toma la biblioteca LoRaLAN de `../../IMPLEMENTACIONMIA/libraries/LoRaLAN/src`.
-  Si solo se tiene este repo, añadir `-DLORALAN_DIR=$PWD/../../LORALAN_LIB/LoRaLAN/src`
-  (desde `build/`). RadioLib no está en el repo y se pasa con `-DRADIOLIB_DIR`.
-- `make: *** No rule to make target 'gatewayLoRaLAN'` = no hay Makefile en la carpeta
-  actual. Suele pasar por ejecutar `mkdir build && cd build` estando ya dentro de `build/`
-  (se acaba en `build/build`). Solución: el bloque de arriba tal cual, que borra `build`.
-- Termina bien con `[100%] Built target gatewayLoRaLAN`.
+Termina con `[100%] Built target gatewayLoRaLAN`. `No rule to make target` = se está en
+`build/build`; repetir el bloque, que borra `build`.
 
-`gateway.env` debe tener `LORALAN_SERVER_HOST=127.0.0.1` (FastAPI corre en la misma Pi).
-
-**Arrancar** (en otra terminal):
+**Arrancar** (otra terminal; `gateway.env` con `LORALAN_SERVER_HOST=127.0.0.1`):
 
 ```bash
-cd ~/Desktop/TFGTelem/controlAsistenciaMigrado/gatewayLoRaLAN
+cd gatewayLoRaLAN
 set -a; . ./gateway.env; set +a
 sudo -E ./build/gatewayLoRaLAN
 ```
 
-`sudo -E` da acceso a los GPIO sin perder las variables de `gateway.env`.
-
-Arranque correcto:
-
-```
-Inicializando SX1276... OK
-  ...
-  sondeo cada 5.0 s     : 0.82% de ciclo de trabajo  (minimo legal 4.1 s)
-Gateway en marcha. Ctrl+C para parar.
-```
-
-En la terminal del servidor deben aparecer `POST /auth/device 200` y, periódicamente,
-`POST /gateway/status`.
-
-Si falla `Inicializando SX1276`:
-- SPI sin habilitar (`ls /dev/spidev0.0`).
-- Radio no alimentada a **3,3 V**.
-- Cableado: DIO0 → BCM16 (pin 36), RST → BCM13 (pin 33); CS lo mueve el driver SPI
-  (CE0, pin 24). Tabla completa en `README.md`.
-
----
+Debe mostrar `Inicializando SX1276... OK`, el ciclo de trabajo del sondeo (0.82 % a 5 s) y
+`Gateway en marcha`; en el servidor, `POST /auth/device 200` y `POST /gateway/status` periódicos.
+Si falla el SX1276: SPI sin habilitar, radio sin 3,3 V o cableado
+(ver `Device_ESP32_LoRaLAN/PINES_ESP32_DIAGRAMA.md`).
 
 ## 4. Nodo ESP32
 
-- Compilar con la biblioteca **del repo** (ver `README.md`, sección "Arranque rápido").
-  Desde el IDE de Arduino hay que copiar antes `LORALAN_LIB/LoRaLAN` encima
-  de `Documents/Arduino/libraries/LoRaLAN`, porque la copia que usa el IDE está desfasada.
-- Pines del SX1276: CS=15, RST=13, DIO0=4. Bus SPI compartido con el PN532: SCK=18,
-  MISO=19, MOSI=23; CS del PN532 = 5, IRQ = 34. PN532 a **3,3 V**.
-- Al arrancar hace el JOIN y el servidor da de alta el nodo con la primera trama (`node-254` si la
-  dirección es dinámica, la primera que reparte el gateway; `node-NNN` si es manual).
-- Asignar el aula al nodo desde el panel de administrador; sin aula, los fichajes devuelven
-  `DESCONOCIDO` (LED rojo).
-
-### Si el ESP32 no arranca con el PN532 conectado
-
-Si no arranca ni con el USB del PC ni con un adaptador, el problema no es falta de
-corriente (el PN532 gasta unos 150 mA): lo más probable es un cortocircuito en el módulo.
-
-1. Con todo desconectado, medir con el multímetro VCC–GND del PN532: ~0 Ω = cortocircuito
-   (buscar puentes de estaño en el conector).
-2. Conectar solo VCC y GND. Si así ya no arranca, el problema es de alimentación o del
-   módulo; si arranca, añadir los cables de señal de uno en uno hasta encontrar el que falla.
-3. Mirar el monitor serie a 115200: `Brownout detector was triggered` = caída de tensión;
-   `invalid header` / `flash read err` = pin de arranque (GPIO 5 lo es).
-4. Comprobar que VCC y GND no estén invertidos y que los interruptores de modo estén en SPI.
-
----
+- Compilar con la biblioteca del repo (`README.md`, "Arranque rápido"). Desde el IDE de
+  Arduino, copiar antes `LORALAN_LIB/LoRaLAN` sobre `Documents/Arduino/libraries/LoRaLAN`.
+- Al arrancar hace el JOIN y el servidor lo da de alta con su primer paquete (`node-254` si la
+  dirección es dinámica, `node-NNN` si es manual). Asignarle el aula desde el panel de
+  administrador; sin aula, los fichajes devuelven `DESCONOCIDO` (LED rojo).
+- **No arranca con el PN532 conectado**: casi siempre es un cortocircuito en el módulo, no falta
+  de corriente. Medir VCC–GND (~0 Ω = corto), probar solo con alimentación y añadir señales de
+  una en una. En el monitor serie (115200), `Brownout` = caída de tensión;
+  `invalid header` = pin de arranque (GPIO 5).
 
 ## Comprobación final
 
-1. Pasar una tarjeta: LED verde y fila nueva en `asistencias`.
-2. Tarjeta desconocida: LED rojo.
-3. Parar el servidor y fichar: el nodo recibe `REINTENTAR`, guarda el fichaje y lo reenvía
-   cada 30 s; al volver el servidor se registra una sola vez.
-4. Relés desde el panel: el comando llega al nodo en el siguiente sondeo del gateway.
+1. Tarjeta conocida: LED verde y fila nueva en `asistencias`. Desconocida: LED rojo.
+2. Con el servidor parado, el nodo recibe `REINTENTAR` y reenvía cada 30 s; al volver el
+   servidor se registra una sola vez.
+3. Relés desde el panel: llegan al nodo en el siguiente sondeo.
