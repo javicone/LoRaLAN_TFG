@@ -1,5 +1,8 @@
 # Server
 
+Este fichero contiene el servidor que gestiona principalmente la lógica de negocio de la aplicación desarrollada.
+Se ha intentado hacer un servidor web que siga buenas prácticas de programación, evitando código monolítico.
+
 Servidor web en Python (FastAPI) del sistema de fichaje:
 
 - **Atiende al gateway**: recibe fichajes, telemetría y latidos, y le entrega las órdenes
