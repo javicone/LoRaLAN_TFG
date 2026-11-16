@@ -10,7 +10,7 @@
 
 | GPIO | Pin Nombre | Función | Componente | Tipo | Notas |
 |-----|-----------|---------|-----------|------|-------|
-| 5   | D5 (GPIO5) | CS (Chip Select) | PN532 NFC | SPI Output | Pull-up requerido |
+| 5   | D5 (GPIO5) | CS (Chip Select) | PN532 NFC | SPI Output 
 | 4   | D4 (GPIO4) | DIO0 (Interrupt) | SX1276 LoRa | Input | Interrupción LoRa (el firmware lee RX_DONE por SPI) |
 | 13  | D13 (GPIO13) | RST (Reset) | SX1276 LoRa | Output | Reset del módulo LoRa |
 | 14  | D14 (GPIO14) | LED amarillo | Indicador | Output | |
