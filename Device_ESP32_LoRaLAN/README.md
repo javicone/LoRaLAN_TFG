@@ -35,8 +35,7 @@ El nodo solo envía el UID de la tarjeta; el gateway le devuelve el resultado:
 - **Fichajes**: se guardan hasta 8 y se envían de uno en uno. Si la respuesta es
   `REINTENTAR` o no llega, se reenvían cada 30 s. La misma tarjeta no se reenvía antes de
   60 s.
-- **Sensores y relés**: van en la respuesta al sondeo del gateway; el estado de los relés,
-  cuando cambia y cada 6 sondeos.
+- **Sensores y relés**: van en la respuesta al sondeo del gateway; el estado de los relés.
 - **Órdenes**: el gateway puede encender o apagar los relés y reiniciar el nodo.
 - **LED y buzzer**: en reposo el LED es fijo, verde si los cuatro sensores y el enlace LoRa
   van bien y amarillo si falla alguno o el nodo no está asociado. El parpadeo y los pitidos
