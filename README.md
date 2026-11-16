@@ -1,10 +1,11 @@
 # Control de asistencia sobre LoRaLAN
 
-Sistema de control de asistencia por tarjeta NFC para aulas, parte del TFG de Telemática
-de Javier Conejero (Universidad de Extremadura). El nodo de cada aula lee la tarjeta del
-profesor y la envía por radio, con el protocolo propio **LoRaLAN**, a un gateway en una
+Repositorio que alberga el trabajo de fin de grado del TFG de Telemática donde se implementa
+el protocolo LoRaLAN y un sistema de registro de asistencia por tarjeta NFC para aulas de la Universidad de Extremadura.
+
+El nodo de cada aula lee la tarjeta del profesor y la envía por radio, con el protocolo propio **LoRaLAN**, a un gateway en una
 Raspberry Pi; el gateway la pasa a un servidor FastAPI, en la misma Pi, que registra la
-asistencia en MariaDB y devuelve el resultado al nodo.
+asistencia en una base de datos y devuelve el resultado al nodo.
 
 ```
 ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI + MariaDB <-- navegador
@@ -38,8 +39,9 @@ ESP32 (nodo) --LoRaLAN 869,525 MHz--> Raspberry Pi (gateway) --HTTP--> FastAPI +
 
 ## Requisitos
 
-- **Hardware**: ESP32 con SX1276 y PN532 para el nodo; Raspberry Pi con SX1276 a 3,3 V
+- **Hardware**: ESP32, SX1276 y PN532 para el nodo; Raspberry Pi con SX1276
   para el gateway; antenas de 868 MHz.
+  
 - **Software**: en la Pi, MariaDB, Python 3, `cmake`, `liblgpio-dev`, `libmbedtls-dev` y
   [RadioLib](https://github.com/jgromes/RadioLib) en `~/RadioLib`; Arduino IDE o
   `arduino-cli` con el core ESP32.
@@ -62,26 +64,14 @@ make -j4 gatewayLoRaLAN && cd ..
 set -a; . ./gateway.env; set +a; sudo -E ./build/gatewayLoRaLAN
 
 # 4. Nodo
-arduino-cli compile --fqbn esp32:esp32:esp32 --library LORALAN_LIB/LoRaLAN Device_ESP32_LoRaLAN
+compilar el firmware mediante arduino ide al esp32.
 ```
-
-## Pruebas sin hardware
-
-```bash
-# Gateway: tiempo en el aire, mensajes nodo-gateway y JSON con el servidor
-cd gatewayLoRaLAN
-g++ -std=c++17 -I src test_airtime.cpp src/radio/airtime.cpp -o test_airtime && ./test_airtime
-g++ -std=c++17 -I ../Device_ESP32_LoRaLAN test_app_protocol.cpp -o test_app_protocol && ./test_app_protocol
-g++ -std=c++17 -I src -I ../Device_ESP32_LoRaLAN test_bridge.cpp src/bridge.cpp -o test_bridge && ./test_bridge
-
-# Servidor (sin base de datos)
-cd Server && python -m pytest scripts/test_gateway_panel.py -q
-```
-
-El simulador del protocolo tiene sus propias órdenes en
-[LORALAN_LIB/sim_LoRaLAN/README.md](LORALAN_LIB/sim_LoRaLAN/README.md).
 
 ## Estado
 
 Probado en hardware de extremo a extremo: nodo ESP32, gateway en la Raspberry Pi,
 servidor y base de datos.
+
+Autor: Javier Conejero Rodríguez
+
+Centro Universitario de Mérida | Universidad de Extremadura
